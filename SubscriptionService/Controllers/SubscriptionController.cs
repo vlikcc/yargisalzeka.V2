@@ -117,7 +117,13 @@ public class SubscriptionController : ControllerBase
                 Petition = u.PetitionRemaining
             };
         }
-        return NotFound();
+        if (usage.Result is UnauthorizedResult)
+            return Unauthorized();
+        if (usage.Result is ForbidResult)
+            return Forbid();
+        if (usage.Result is NotFoundResult)
+            return NotFound();
+        return StatusCode((usage.Result as StatusCodeResult)?.StatusCode ?? 500);
     }
 
     [HttpPost("consume")]
