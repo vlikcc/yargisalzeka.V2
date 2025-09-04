@@ -13,8 +13,7 @@ obj/
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
-## Docker (do not ignore .dockerignore; keep service Dockerfiles tracked)
-Dockerfile
+## Docker (track Dockerfiles; only ignore .dockerignore itself if needed)
 build/
 bld/
 [Bb]in/
