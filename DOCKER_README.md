@@ -125,9 +125,9 @@ docker-compose up -d search-service
 
 Tüm environment variable'lar `docker-compose.yml` dosyasında tanımlanmıştır:
 
-- `POSTGRES_PASSWORD`: Srmn1931
-- `JWT_KEY`: a4e2f8c1b6d0e8f3a2c5b4d1e6f0a3b7
-- `GEMINI_API_KEY`: AIzaSyD5tpzdgEoDPZy_Xs07R8MutzpG6pWvMyo
+- `POSTGRES_PASSWORD`: your_postgre_password
+- `JWT_KEY`: 32_Chracter_JWT_KEY
+- `GEMINI_API_KEY`: Your_Gemini_API_KEY
 
 ## Notlar
 
