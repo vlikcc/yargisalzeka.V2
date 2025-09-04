@@ -1,5 +1,6 @@
 import { createContext, useReducer, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { subscriptionService, SubscriptionPlan, UsageStats, RemainingCredits, UserSubscription } from '../services/subscriptionService';
+import { useAuth } from './AuthContext';
 
 interface State {
   plan: SubscriptionPlan | null;
@@ -38,8 +39,9 @@ const SubscriptionContext = createContext<ContextValue | undefined>(undefined);
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const { state: auth } = useAuth();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (attemptedTrial = false) => {
     dispatch({ type: 'SUB_LOADING' });
     try {
       const [current, usage, remaining, plans] = await Promise.all([
@@ -50,11 +52,23 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       ]);
       const activePlan = Array.isArray(plans) ? plans.find(p => p.id === (current as UserSubscription).subscriptionPlanId) || null : null;
       dispatch({ type: 'SUB_SUCCESS', payload: { current, usage, remaining, plan: activePlan } });
-    } catch (e) {
-      const err = e as Error;
-      dispatch({ type: 'SUB_ERROR', payload: err.message || 'Abonelik verileri alınamadı' });
+    } catch (e: any) {
+      const status = e?.response?.status as number | undefined;
+      // If no active subscription yet, try to assign trial once
+      if (status === 404 && !attemptedTrial && auth?.user?.id) {
+        try {
+          await subscriptionService.assignTrial(auth.user.id);
+          // Small delay to let backend persist
+          setTimeout(() => { void load(true); }, 200);
+          return;
+        } catch (assignErr) {
+          // fall through to error
+        }
+      }
+      const msg = e?.response?.data?.Message || e?.message || 'Abonelik verileri alınamadı';
+      dispatch({ type: 'SUB_ERROR', payload: msg });
     }
-  }, []);
+  }, [auth?.user?.id]);
 
   useEffect(() => { void load(); }, [load]);
 
