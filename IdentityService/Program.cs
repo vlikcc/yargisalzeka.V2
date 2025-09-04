@@ -12,7 +12,15 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<IdentitiyDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+    {
+        options.Password.RequiredLength = 6;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireDigit = false;
+        options.User.RequireUniqueEmail = true;
+    })
     .AddEntityFrameworkStores<IdentitiyDbContext>()
     .AddDefaultTokenProviders();
 

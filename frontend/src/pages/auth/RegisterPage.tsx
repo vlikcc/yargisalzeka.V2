@@ -25,7 +25,15 @@ export default function RegisterPage() {
         alert(serverMsg || 'Bu e-posta zaten kayıtlı. Lütfen giriş yapın.');
         return;
       }
-      alert(serverMsg || 'Kayıt başarısız');
+      const details = anyErr?.response?.data?.Errors;
+      if (details) {
+        const flat = Array.isArray(details)
+          ? details
+          : Object.entries(details).flatMap(([k, v]) => Array.isArray(v) ? v.map(x => `${k}: ${x}`) : [`${k}: ${String(v)}`]);
+        alert((serverMsg || 'Kayıt başarısız') + '\n' + flat.join('\n'));
+      } else {
+        alert(serverMsg || 'Kayıt başarısız');
+      }
     }
   };
 
