@@ -52,10 +52,21 @@ namespace IdentityService.Controllers
                 Email = request.Email
             };
 
-            var result = await _userManager.CreateAsync(user, request.Password);
+            IdentityResult result;
+            try
+            {
+                result = await _userManager.CreateAsync(user, request.Password);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Kullanıcı kaydı sırasında beklenmeyen hata: {Email}", request.Email);
+                return StatusCode(500, new { Message = "Kayıt sırasında beklenmeyen bir hata oluştu." });
+            }
+
             if (!result.Succeeded)
             {
-                _logger.LogWarning("Kullanıcı kaydı başarısız: {Email}", request.Email);
+                var errors = string.Join("; ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
+                _logger.LogWarning("Kullanıcı kaydı başarısız: {Email} -> {Errors}", request.Email, errors);
                 return BadRequest(result.Errors);
             }
 
@@ -258,7 +269,11 @@ namespace IdentityService.Controllers
 
         private async Task<(string Token, DateTime ExpiresAtUtc)> GenerateJwtToken(ApplicationUser user)
         {
-            var key = _configuration["Jwt:Key"]!;
+            var key = _configuration["Jwt:Key"] ?? "insecure-dev-key-change-me-at-least-32-chars";
+            if (key == "insecure-dev-key-change-me-at-least-32-chars")
+            {
+                _logger.LogWarning("JWT key missing in configuration. Using insecure default. Set Jwt__Key in environment or configuration for production.");
+            }
             var issuer = _configuration["Jwt:Issuer"];
             var audience = _configuration["Jwt:Audience"];
 
