@@ -13,8 +13,8 @@ obj/
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
-x64/
-x86/
+## Docker (do not ignore .dockerignore; keep service Dockerfiles tracked)
+Dockerfile
 build/
 bld/
 [Bb]in/
@@ -39,9 +39,8 @@ bld/
 *.userosscache
 *.sln.docstates
 
-# Docker
+## Docker
 .dockerignore
-Dockerfile
 
 # Environment files
 appsettings.*.json
@@ -101,3 +100,4 @@ obj/
 .vs/
 *.user
 
+azure-creds.json
