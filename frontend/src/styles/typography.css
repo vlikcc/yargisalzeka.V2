@@ -1,0 +1,25 @@
+/* Ensure diacritics (İ dot, ç cedilla) are not clipped in large headings */
+.headline-safe {
+  line-height: 1.15;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: visible;
+}
+.headline-safe .line {
+  line-height: inherit;
+  overflow: visible;
+}
+
+/* Hero heading specific tweaks */
+.hero-title {
+  line-height: 1.25;
+  font-kerning: normal;
+  /* Help browsers allocate extra space for ascenders/diacritics */
+  --font-ascent-override: 115%;
+}
+.hero-title .line {
+  display: block;
+  padding-top: 0.05em;
+  padding-bottom: 0.05em;
+}

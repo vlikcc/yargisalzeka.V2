@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aiservice
+  template:
+    metadata:
+      labels:
+        app: aiservice
+    spec:
+      containers:
+        - name: aiservice
+          image: velikececi-e8ada5d7hzfhc0g9.azurecr.io/aiservice:prod
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5012
+          envFrom:
+            - secretRef:
+                name: app-secrets
+            - secretRef:
+                name: db-connections
+            - configMapRef:
+                name: app-config
+          env:
+            - name: ASPNETCORE_URLS
+              value: http://+:5012
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: db-connections
+                  key: ai_ConnectionStrings__DefaultConnection
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5012
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5012
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "400m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiservice
+spec:
+  type: ClusterIP
+  selector:
+    app: aiservice
+  ports:
+    - name: http
+      port: 5012
+      targetPort: 5012

@@ -1,0 +1,103 @@
+# .NET Core build folders
+bin/
+obj/
+
+# Visual Studio files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+build/
+bld/
+[Bb]in/
+[Oo]bj/
+
+# MSTest test Results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+*.nuget.props
+*.nuget.targets
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Docker
+.dockerignore
+Dockerfile
+
+# Environment files
+appsettings.*.json
+!appsettings.json
+!appsettings.Example.json
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.staging
+
+# Docker secrets
+secrets/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/node_modules/@fontsource/
+frontend/node_modules/.package-lock.json
+
+# Build outputs
+bin/
+obj/
+
+# Docker
+.dockerignore
+
+# IDE
+.vs/
+*.user
+
+
+# Build outputs
+bin/
+obj/
+
+# Docker
+.dockerignore
+
+# IDE
+.vs/
+*.user
+

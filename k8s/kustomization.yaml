@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: yargisalzeka
+commonLabels:
+  app.kubernetes.io/part-of: yargisalzeka
+resources:
+  - ns.yaml
+  - services/identity.yaml
+  - services/subscription.yaml
+  - services/document.yaml
+  - services/search.yaml
+  - services/ai.yaml
+  - services/apigateway.yaml
+  - services/frontend.yaml
+  - ingress-api.yaml
+  - ingress-frontend.yaml
+  - hpa-apigateway.yaml

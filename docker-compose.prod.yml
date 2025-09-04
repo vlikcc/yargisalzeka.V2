@@ -1,0 +1,102 @@
+# Production Docker Compose Configuration
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  # Production-specific overrides (match base service names)
+  postgres:
+    environment:
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=yargisalzeka
+    restart: unless-stopped
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "work_mem=4MB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "effective_cache_size=1GB"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+
+  opensearch:
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "DISABLE_SECURITY_PLUGIN=true"
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD:-admin}"
+    restart: unless-stopped
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+
+  frontend:
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+  identityservice:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5001
+    restart: unless-stopped
+
+  subscriptionservice:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5002
+    restart: unless-stopped
+
+  searchservice:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5043
+    restart: unless-stopped
+
+  documentservice:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5003
+    restart: unless-stopped
+
+  aiservice:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5012
+    restart: unless-stopped
+
+  apigateway:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+    restart: unless-stopped
+
+# Production logging
+networks:
+  yargisalzeka-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: yargisalzeka-prod
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/postgres
+  opensearch_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/opensearch

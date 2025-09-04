@@ -1,0 +1,147 @@
+{
+  "Routes": [
+    {
+      "DownstreamPathTemplate": "/api/auth/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "identityservice", "Port": 5001 } ],
+      "UpstreamPathTemplate": "/api/auth/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/auth/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "identityservice", "Port": 5001 } ],
+      "UpstreamPathTemplate": "/auth/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/gemini/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "aiservice", "Port": 5012 } ],
+      "UpstreamPathTemplate": "/api/gemini/{everything}",
+      "UpstreamHttpMethod": [ "POST" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/gemini/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "aiservice", "Port": 5012 } ],
+      "UpstreamPathTemplate": "/gemini/{everything}",
+      "UpstreamHttpMethod": [ "POST" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/search",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "searchservice", "Port": 5004 } ],
+      "UpstreamPathTemplate": "/api/search",
+      "UpstreamHttpMethod": [ "POST" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/search",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "searchservice", "Port": 5004 } ],
+      "UpstreamPathTemplate": "/search",
+      "UpstreamHttpMethod": [ "POST" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/search/history",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "searchservice", "Port": 5004 } ],
+      "UpstreamPathTemplate": "/api/search/history",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/search/history",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "searchservice", "Port": 5004 } ],
+      "UpstreamPathTemplate": "/search/history",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/search/saved",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "searchservice", "Port": 5004 } ],
+      "UpstreamPathTemplate": "/api/search/saved",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/search/saved",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "searchservice", "Port": 5004 } ],
+      "UpstreamPathTemplate": "/search/saved",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/search/save/{decisionId}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "searchservice", "Port": 5004 } ],
+      "UpstreamPathTemplate": "/api/search/save/{decisionId}",
+      "UpstreamHttpMethod": [ "POST", "DELETE" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/search/save/{decisionId}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "searchservice", "Port": 5004 } ],
+      "UpstreamPathTemplate": "/search/save/{decisionId}",
+      "UpstreamHttpMethod": [ "POST", "DELETE" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/petition/generate",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "documentservice", "Port": 5003 } ],
+      "UpstreamPathTemplate": "/api/petition/generate",
+      "UpstreamHttpMethod": [ "POST" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/petition/generate",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "documentservice", "Port": 5003 } ],
+      "UpstreamPathTemplate": "/petition/generate",
+      "UpstreamHttpMethod": [ "POST" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/petition/history",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "documentservice", "Port": 5003 } ],
+      "UpstreamPathTemplate": "/api/petition/history",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/petition/history",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "documentservice", "Port": 5003 } ],
+      "UpstreamPathTemplate": "/petition/history",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/petition/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "documentservice", "Port": 5003 } ],
+      "UpstreamPathTemplate": "/api/petition/{id}",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/petition/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "documentservice", "Port": 5003 } ],
+      "UpstreamPathTemplate": "/petition/{id}",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/subscription/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "subscriptionservice", "Port": 5002 } ],
+      "UpstreamPathTemplate": "/api/subscription/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/subscription/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "subscriptionservice", "Port": 5002 } ],
+      "UpstreamPathTemplate": "/subscription/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+    }
+  ],
+  "GlobalConfiguration": {
+    "BaseUrl": "http://apigateway:5000"
+  }
+}

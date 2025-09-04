@@ -1,0 +1,41 @@
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { loginSchema, LoginFormValues } from '../../validation/authSchemas';
+import { authService } from '../../services/authService';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate, Link } from 'react-router-dom';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { FormField } from '../../components/forms/FormField';
+
+export default function LoginPage() {
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const onSubmit = async (data: LoginFormValues) => {
+    try {
+      const res = await authService.login(data);
+      login(res.token, res.user);
+  navigate('/app');
+    } catch {
+      // Basit hata gösterimi ileride toasta dönüşecek
+      alert('Giriş başarısız');
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
+      <form onSubmit={handleSubmit(onSubmit)} className="w-full max-w-sm space-y-5 bg-white p-6 rounded shadow">
+        <h2 className="text-xl font-semibold tracking-tight">Giriş Yap</h2>
+        <FormField label="E-posta" error={errors.email?.message}>
+          <Input type="email" placeholder="ornek@site.com" {...register('email')} />
+        </FormField>
+        <FormField label="Şifre" error={errors.password?.message}>
+          <Input type="password" {...register('password')} />
+        </FormField>
+        <Button type="submit" className="w-full font-medium" disabled={isSubmitting}>{isSubmitting ? 'Giriş yapılıyor...' : 'Giriş'}</Button>
+        <div className="text-xs text-center text-gray-500">Hesabın yok mu? <Link to="/register" className="text-primary underline">Kayıt Ol</Link></div>
+      </form>
+    </div>
+  );
+}

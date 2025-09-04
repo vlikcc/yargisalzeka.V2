@@ -1,0 +1,187 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+env:
+  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }} # e.g. myacr.azurecr.io
+  ACR_NAME: ${{ secrets.ACR_NAME }}         # e.g. myacr
+  AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
+  AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore ./yargisalzeka.Net.sln
+
+      - name: Build
+        run: dotnet build ./yargisalzeka.Net.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test ./yargisalzeka.Net.sln -c Release --no-build --logger "trx;LogFileName=test-results.trx"
+
+      - name: Setup Node (frontend quick typecheck)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend build sanity check
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+  docker-build-push:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR login
+        run: az acr login -n "$ACR_NAME"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to ACR (Docker)
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+
+      - name: Build & Push images (microservices)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ApiGateway/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/apigateway:${{ env.IMAGE_TAG }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push IdentityService
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: IdentityService/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/identityservice:${{ env.IMAGE_TAG }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push SubscriptionService
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: SubscriptionService/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/subscriptionservice:${{ env.IMAGE_TAG }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push DocumentService
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: DocumentService/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/documentservice:${{ env.IMAGE_TAG }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push SearchService
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: SearchService/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/searchservice:${{ env.IMAGE_TAG }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push AIService
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: AIService/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/aiservice:${{ env.IMAGE_TAG }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push Frontend (Vite)
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/frontend:${{ env.IMAGE_TAG }}
+          platforms: linux/amd64
+          build-args: |
+            VITE_API_BASE_URL=/api
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-aks:
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+
+      - name: Update deployments to new images
+        run: |
+          set -euo pipefail
+          ns=yargisalzeka
+          reg=${REGISTRY}
+          tag=${IMAGE_TAG}
+
+          kubectl -n "$ns" set image deployment/apigateway apigateway="$reg/apigateway:$tag" --record
+          kubectl -n "$ns" set image deployment/identityservice identityservice="$reg/identityservice:$tag" --record
+          kubectl -n "$ns" set image deployment/subscriptionservice subscriptionservice="$reg/subscriptionservice:$tag" --record
+          kubectl -n "$ns" set image deployment/documentservice documentservice="$reg/documentservice:$tag" --record
+          kubectl -n "$ns" set image deployment/searchservice searchservice="$reg/searchservice:$tag" --record
+          kubectl -n "$ns" set image deployment/aiservice aiservice="$reg/aiservice:$tag" --record
+          kubectl -n "$ns" set image deployment/frontend frontend="$reg/frontend:$tag" --record
+
+      - name: Wait for rollout
+        run: |
+          set -euo pipefail
+          ns=yargisalzeka
+          for d in apigateway identityservice subscriptionservice documentservice searchservice aiservice frontend; do
+            kubectl -n "$ns" rollout status deployment/$d --timeout=300s || exit 1
+          done

@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searchservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: searchservice
+  template:
+    metadata:
+      labels:
+        app: searchservice
+    spec:
+      containers:
+        - name: searchservice
+          image: velikececi-e8ada5d7hzfhc0g9.azurecr.io/searchservice:prod
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5004
+          envFrom:
+            - secretRef:
+                name: app-secrets
+            - secretRef:
+                name: db-connections
+            - configMapRef:
+                name: app-config
+          env:
+            - name: ASPNETCORE_URLS
+              value: http://+:5004
+            - name: Database__EnsureCreated
+              value: "true"
+            - name: OpenSearch__Uri
+              value: http://opensearch:9200
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: db-connections
+                  key: search_ConnectionStrings__DefaultConnection
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5004
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5004
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "400m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: searchservice
+spec:
+  type: ClusterIP
+  selector:
+    app: searchservice
+  ports:
+    - name: http
+      port: 5004
+      targetPort: 5004

@@ -1,0 +1,18 @@
+version: '3.8'
+
+# macOS-friendly overrides for local production-like runs
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.mac.yml up -d
+
+services:
+  postgres:
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+
+  opensearch:
+    volumes:
+      - ./data/opensearch:/usr/share/opensearch/data
+
+volumes:
+  postgres_data: {}
+  opensearch_data: {}

@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: documentservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: documentservice
+  template:
+    metadata:
+      labels:
+        app: documentservice
+    spec:
+      containers:
+        - name: documentservice
+          image: velikececi-e8ada5d7hzfhc0g9.azurecr.io/documentservice:prod
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5003
+          envFrom:
+            - secretRef:
+                name: app-secrets
+            - secretRef:
+                name: db-connections
+            - configMapRef:
+                name: app-config
+          env:
+            - name: ASPNETCORE_URLS
+              value: http://+:5003
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: db-connections
+                  key: document_ConnectionStrings__DefaultConnection
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5003
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5003
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "400m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: documentservice
+spec:
+  type: ClusterIP
+  selector:
+    app: documentservice
+  ports:
+    - name: http
+      port: 5003
+      targetPort: 5003

@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package subscriptions;
+option csharp_namespace = "subscriptions";
+
+service Subscription {
+  rpc CheckSubscriptionStatus (CheckStatusRequest) returns (CheckStatusResponse);
+  rpc ConsumeFeature (ConsumeFeatureRequest) returns (ConsumeFeatureResponse);
+  rpc GetRemainingCredits (GetRemainingCreditsRequest) returns (GetRemainingCreditsResponse);
+  rpc ValidateFeatureAccess (ValidateFeatureAccessRequest) returns (ValidateFeatureAccessResponse);
+  rpc AssignTrialSubscription (AssignTrialRequest) returns (AssignTrialResponse);
+}
+
+message CheckStatusRequest { string user_id = 1; }
+message CheckStatusResponse { bool has_active_subscription = 1; int32 remaining_credits = 2; }
+
+message ConsumeFeatureRequest { string user_id = 1; string feature_type = 2; }
+message ConsumeFeatureResponse { bool success = 1; string message = 2; int32 remaining_count = 3; }
+
+message ValidateFeatureAccessRequest { string user_id = 1; string feature_type = 2; }
+message ValidateFeatureAccessResponse { bool has_access = 1; string message = 2; int32 remaining_count = 3; }
+
+message GetRemainingCreditsRequest { string user_id = 1; }
+message GetRemainingCreditsResponse { int32 keyword_extraction = 1; int32 case_analysis = 2; int32 search = 3; int32 petition = 4; }
+
+message AssignTrialRequest { string user_id = 1; }
+message AssignTrialResponse { bool success = 1; string message = 2; }
