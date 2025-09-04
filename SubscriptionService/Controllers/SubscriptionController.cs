@@ -107,6 +107,18 @@ public class SubscriptionController : ControllerBase
     public async Task<ActionResult<RemainingCreditsDto>> GetRemainingCredits()
     {
         var usage = await GetUsageStats();
+        // Handle the common case where ActionResult.Value is populated (usage.Result == null)
+        if (usage.Value is UsageStatsDto u1)
+        {
+            return new RemainingCreditsDto
+            {
+                KeywordExtraction = u1.KeywordExtractionRemaining,
+                CaseAnalysis = u1.CaseAnalysisRemaining,
+                Search = u1.SearchRemaining,
+                Petition = u1.PetitionRemaining
+            };
+        }
+        // Also handle when an ObjectResult is returned explicitly
         if (usage.Result is ObjectResult o && o.Value is UsageStatsDto u)
         {
             return new RemainingCreditsDto
@@ -129,7 +141,7 @@ public class SubscriptionController : ControllerBase
     [HttpPost("consume")]
     public async Task<ActionResult> ConsumeFeature([FromBody] ConsumeFeatureRequestDto request)
     {
-        var userId = User.Identity?.Name;
+    var userId = User.FindFirstValue("sub") ?? User.Identity?.Name;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         var sub = await _dbContext.UserSubscriptions.Include(s => s.SubscriptionPlan)
             .FirstOrDefaultAsync(s => s.UserId == userId && s.IsActive);
