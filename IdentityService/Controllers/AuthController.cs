@@ -40,7 +40,11 @@ namespace IdentityService.Controllers
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
             if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            {
+                var errs = ModelState.Where(m => m.Value?.Errors?.Count > 0)
+                    .ToDictionary(k => k.Key, v => v.Value!.Errors.Select(e => e.ErrorMessage).ToArray());
+                return BadRequest(new { Message = "Geçersiz alanlar", Errors = errs });
+            }
 
             var existing = await _userManager.FindByEmailAsync(request.Email);
             if (existing != null)
@@ -69,7 +73,7 @@ namespace IdentityService.Controllers
             {
                 var errors = string.Join("; ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
                 _logger.LogWarning("Kullanıcı kaydı başarısız: {Email} -> {Errors}", request.Email, errors);
-                return BadRequest(result.Errors);
+                return BadRequest(new { Message = "Kayıt doğrulama hatası", Errors = result.Errors.Select(e => new { e.Code, e.Description }) });
             }
 
             _logger.LogInformation("Yeni kullanıcı kaydedildi: {Email}", request.Email);
