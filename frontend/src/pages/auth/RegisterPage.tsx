@@ -17,8 +17,15 @@ export default function RegisterPage() {
       const res = await authService.register(data);
       login(res.token, res.user);
   navigate('/app');
-    } catch {
-      alert('Kayıt başarısız');
+    } catch (err: unknown) {
+      const anyErr = err as any;
+      const status = anyErr?.response?.status as number | undefined;
+      const serverMsg = anyErr?.response?.data?.Mesaj || anyErr?.response?.data?.message || anyErr?.response?.data?.Message;
+      if (status === 409) {
+        alert(serverMsg || 'Bu e-posta zaten kayıtlı. Lütfen giriş yapın.');
+        return;
+      }
+      alert(serverMsg || 'Kayıt başarısız');
     }
   };
 
