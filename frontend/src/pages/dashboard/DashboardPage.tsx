@@ -2,6 +2,7 @@ import { useSubscription } from '../../contexts/SubscriptionContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { StatCard, UsageChart, SearchHistoryList } from '../../components/dashboard';
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
   FileText,
@@ -15,6 +16,7 @@ import {
 export default function DashboardPage() {
   const { usage, plan, remaining, loading: subscriptionLoading } = useSubscription();
   const { state: authState } = useAuth();
+  const navigate = useNavigate();
 
   const totals = useMemo(() => {
     if (!usage) return null;
@@ -106,7 +108,7 @@ export default function DashboardPage() {
           <div className="card p-6">
             <h3 className="text-lg font-semibold text-neutral-900 mb-4">Hızlı İşlemler</h3>
             <div className="space-y-3">
-              <button className="w-full flex items-center space-x-3 p-3 rounded-lg bg-primary-50 hover:bg-primary-100 text-primary-700 transition-colors duration-200 group">
+              <button onClick={() => navigate('/app/search')} className="w-full flex items-center space-x-3 p-3 rounded-lg bg-primary-50 hover:bg-primary-100 text-primary-700 transition-colors duration-200 group">
                 <Search className="w-5 h-5" />
                 <span className="text-sm font-medium">Yeni Arama</span>
                 <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
@@ -114,7 +116,7 @@ export default function DashboardPage() {
                 </div>
               </button>
 
-              <button className="w-full flex items-center space-x-3 p-3 rounded-lg bg-accent-50 hover:bg-accent-100 text-accent-700 transition-colors duration-200 group">
+              <button onClick={() => navigate('/app/petitions')} className="w-full flex items-center space-x-3 p-3 rounded-lg bg-accent-50 hover:bg-accent-100 text-accent-700 transition-colors duration-200 group">
                 <FileText className="w-5 h-5" />
                 <span className="text-sm font-medium">Dilekçe Oluştur</span>
                 <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
@@ -122,7 +124,7 @@ export default function DashboardPage() {
                 </div>
               </button>
 
-              <button className="w-full flex items-center space-x-3 p-3 rounded-lg bg-neutral-50 hover:bg-neutral-100 text-neutral-700 transition-colors duration-200 group">
+              <button onClick={() => navigate('/app/history')} className="w-full flex items-center space-x-3 p-3 rounded-lg bg-neutral-50 hover:bg-neutral-100 text-neutral-700 transition-colors duration-200 group">
                 <Clock className="w-5 h-5" />
                 <span className="text-sm font-medium">Geçmişi Görüntüle</span>
                 <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">

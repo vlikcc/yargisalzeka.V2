@@ -15,12 +15,12 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 
 const navigationItems = [
-  { to: '/', label: 'Dashboard', icon: Home },
-  { to: '/search', label: 'Akıllı Arama', icon: Search },
-  { to: '/petitions', label: 'Dilekçeler', icon: FileText },
-  { to: '/history', label: 'Geçmiş', icon: History },
-  { to: '/subscription', label: 'Abonelik', icon: CreditCard },
-  { to: '/profile', label: 'Profil', icon: User },
+  { to: '/app', label: 'Dashboard', icon: Home },
+  { to: '/app/search', label: 'Akıllı Arama', icon: Search },
+  { to: '/app/petitions', label: 'Dilekçeler', icon: FileText },
+  { to: '/app/history', label: 'Geçmiş', icon: History },
+  { to: '/app/subscription', label: 'Abonelik', icon: CreditCard },
+  { to: '/app/profile', label: 'Profil', icon: User },
 ];
 
 const adminNavigationItems = [
@@ -52,7 +52,7 @@ export function Sidebar() {
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === '/'}
+              end={item.to === '/app'}
               className={({ isActive }) =>
                 `flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
                   isActive
