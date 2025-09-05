@@ -29,7 +29,7 @@ public class SearchController : ControllerBase
 	}
 
 	[HttpPost]
-	[ProducesResponseType(typeof(List<DecisionDto>), 200)]
+	[ProducesResponseType(typeof(SearchResponse), 200)]
 	public async Task<IActionResult> Search([FromBody] SearchRequest request, CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrWhiteSpace(request.CaseText))
@@ -48,13 +48,16 @@ public class SearchController : ControllerBase
 		if (usage == null) return StatusCode(502, "Subscription service unreachable");
 		if (usage.SearchRemaining == 0) return Forbid("Limit tükendi");
 
-		// Extract keywords from case text using AI Service
+		// AI Service'den hem keywords hem de case analysis al
 		var aiClient = _factory.CreateClient("AIService");
 		if (!string.IsNullOrEmpty(token)) aiClient.DefaultRequestHeaders.Add("Authorization", token);
 		
 		List<string> keywords;
+		string caseAnalysis;
+		
 		try
 		{
+			// Keywords extraction
 			var keywordRequest = new KeywordExtractionRequest(request.CaseText);
 			var keywordResponse = await aiClient.PostAsJsonAsync("api/gemini/extract-keywords", keywordRequest, cancellationToken);
 			
@@ -67,9 +70,24 @@ public class SearchController : ControllerBase
 
 			keywords = await keywordResponse.Content.ReadFromJsonAsync<List<string>>(cancellationToken: cancellationToken) ?? new List<string>();
 			
+			// Case analysis
+			var analysisRequest = new { CaseText = request.CaseText };
+			var analysisResponse = await aiClient.PostAsJsonAsync("api/gemini/analyze-case", analysisRequest, cancellationToken);
+			
+			if (!analysisResponse.IsSuccessStatusCode)
+			{
+				_logger.LogError("AI Service case analysis failed: {StatusCode} - {Content}", 
+					analysisResponse.StatusCode, await analysisResponse.Content.ReadAsStringAsync());
+				return StatusCode(502, "Olay analizi işlemi başarısız");
+			}
+
+			var analysisResult = await analysisResponse.Content.ReadFromJsonAsync<CaseAnalysisResponse>(cancellationToken: cancellationToken);
+			caseAnalysis = analysisResult?.AnalysisResult ?? "Analiz tamamlanamadı";
+			
 			if (keywords.Count == 0)
 			{
-				return BadRequest("Olay metninden anahtar kelime çıkarılamadı.");
+				_logger.LogWarning("No keywords extracted from case text");
+				keywords = new List<string>(); // Boş liste olarak devam et
 			}
 		}
 		catch (Exception ex)
@@ -78,7 +96,7 @@ public class SearchController : ControllerBase
 			return StatusCode(502, "AI servisi ile iletişim kurulamadı");
 		}
 
-		// Search with extracted keywords
+		// Search with extracted keywords (boş olsa bile çalışır)
 		var results = await _searchProvider.SearchAsync(keywords, cancellationToken);
 		await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = "Search" });
 
@@ -100,7 +118,15 @@ public class SearchController : ControllerBase
 			_logger.LogWarning(ex, "Arama geçmişi kaydedilemedi");
 		}
 
-		return Ok(results);
+		// Kapsamlı response döndür
+		var response = new SearchResponse(
+			Decisions: results,
+			Analysis: new CaseAnalysisResponse(caseAnalysis),
+			Keywords: new KeywordExtractionResult(keywords),
+			TotalResults: results.Count
+		);
+
+		return Ok(response);
 	}
 
 	// GET api/search/history?take=20

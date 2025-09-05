@@ -20,15 +20,15 @@ export function useSearchFlow() {
     setIsSearching(true);
     setError(null);
     try {
-      // Backend artık tüm AI işlemlerini yapıyor, sadece caseText gönder
-      const decisions = await searchService.searchCases(request.caseText);
+      // Backend'den kapsamlı response al (AI analiz + arama sonuçları)
+      const backendResponse = await searchService.searchCases(request.caseText);
       
       // UI için uyumlu format oluştur
       const searchResponse: SearchResponse = {
-        analysis: { AnalysisResult: 'Backend analiz tamamlandı' },
-        keywords: { keywords: [] }, // Backend'den anahtar kelimeler dönmüyor artık
+        analysis: { AnalysisResult: backendResponse.analysis.analysisResult },
+        keywords: { keywords: backendResponse.keywords.keywords },
         searchId: Date.now().toString(),
-        scoredDecisions: decisions.map(d => ({
+        scoredDecisions: backendResponse.decisions.map(d => ({
           id: d.id.toString(),
           title: `${d.yargitayDairesi} - ${d.esasNo}/${d.kararNo}`,
           score: 1,
