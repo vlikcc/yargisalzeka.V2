@@ -31,8 +31,20 @@ export interface DecisionDto {
   kararMetni: string;
 }
 
+// Backend'den gelen kapsamlı response
+export interface BackendSearchResponse {
+  decisions: DecisionDto[];
+  analysis: {
+    analysisResult: string;
+  };
+  keywords: {
+    keywords: string[];
+  };
+  totalResults: number;
+}
+
 export const searchService = {
-  searchCases: (caseText: string) => httpClient.post<DecisionDto[]>(ENDPOINTS.SEARCH.SEARCH, { CaseText: caseText }),
+  searchCases: (caseText: string) => httpClient.post<BackendSearchResponse>(ENDPOINTS.SEARCH.SEARCH, { CaseText: caseText }),
   getHistory: () => httpClient.get<SearchHistoryItem[]>(ENDPOINTS.SEARCH.HISTORY),
   saveDecision: (payload: SaveDecisionRequest) => httpClient.post(ENDPOINTS.SEARCH.SAVE_DECISION, payload)
 };
