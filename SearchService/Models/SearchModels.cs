@@ -1,6 +1,6 @@
 namespace SearchService.Models;
 
-public record SearchRequest(List<string> Keywords);
+public record SearchRequest(string CaseText);
 
 public record DecisionDto(
 	long Id,
@@ -10,5 +10,9 @@ public record DecisionDto(
 	DateTime? KararTarihi, // Nullable yap
 	string KararMetni
 );
+
+// AI Service ile iletişim için DTOs
+public record KeywordExtractionRequest(string CaseText);
+public record KeywordExtractionResponse(List<string> Keywords);
 
 
