@@ -20,13 +20,24 @@ export function useSearchFlow() {
     setIsSearching(true);
     setError(null);
     try {
-      const [analysis, keywords] = await Promise.all([
-        aiService.analyzeCase({ caseText: request.caseText }),
-        aiService.extractKeywords({ caseText: request.caseText })
-      ]);
-
-      const searchRes = await searchService.searchCases({ caseText: request.caseText, filters: request.filters });
-      setResult({ ...searchRes, analysis, keywords });
+      // Backend artık tüm AI işlemlerini yapıyor, sadece caseText gönder
+      const decisions = await searchService.searchCases(request.caseText);
+      
+      // UI için uyumlu format oluştur
+      const searchResponse: SearchResponse = {
+        analysis: { AnalysisResult: 'Backend analiz tamamlandı' },
+        keywords: { keywords: [] }, // Backend'den anahtar kelimeler dönmüyor artık
+        searchId: Date.now().toString(),
+        scoredDecisions: decisions.map(d => ({
+          id: d.id.toString(),
+          title: `${d.yargitayDairesi} - ${d.esasNo}/${d.kararNo}`,
+          score: 1,
+          court: d.yargitayDairesi,
+          summary: d.kararMetni.length > 200 ? d.kararMetni.substring(0, 200) + '...' : d.kararMetni
+        }))
+      };
+      
+      setResult(searchResponse);
       refreshSubscription();
       loadHistory();
     } catch (e) {

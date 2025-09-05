@@ -32,22 +32,55 @@ public class SearchController : ControllerBase
 	[ProducesResponseType(typeof(List<DecisionDto>), 200)]
 	public async Task<IActionResult> Search([FromBody] SearchRequest request, CancellationToken cancellationToken)
 	{
-		if (request.Keywords == null || request.Keywords.Count == 0)
+		if (string.IsNullOrWhiteSpace(request.CaseText))
 		{
-			return BadRequest("Anahtar kelimeler gerekli.");
+			return BadRequest("Olay metni gerekli.");
 		}
 
 		var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
 		if (string.IsNullOrEmpty(userId)) return Unauthorized();
-	var sub = _factory.CreateClient("Subscription");
-	var token = Request.Headers["Authorization"].ToString();
-	if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
-	var usage = await sub.GetFromJsonAsync<UsageStatsDto>("api/subscription/usage");
-	if (usage == null) return StatusCode(502, "Subscription service unreachable");
-	if (usage.SearchRemaining == 0) return Forbid("Limit tükendi");
 
-		var results = await _searchProvider.SearchAsync(request.Keywords, cancellationToken);
-	await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = "Search" });
+		// Subscription check
+		var sub = _factory.CreateClient("Subscription");
+		var token = Request.Headers["Authorization"].ToString();
+		if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
+		var usage = await sub.GetFromJsonAsync<UsageStatsDto>("api/subscription/usage");
+		if (usage == null) return StatusCode(502, "Subscription service unreachable");
+		if (usage.SearchRemaining == 0) return Forbid("Limit tükendi");
+
+		// Extract keywords from case text using AI Service
+		var aiClient = _factory.CreateClient("AIService");
+		if (!string.IsNullOrEmpty(token)) aiClient.DefaultRequestHeaders.Add("Authorization", token);
+		
+		List<string> keywords;
+		try
+		{
+			var keywordRequest = new KeywordExtractionRequest(request.CaseText);
+			var keywordResponse = await aiClient.PostAsJsonAsync("api/gemini/extract-keywords", keywordRequest, cancellationToken);
+			
+			if (!keywordResponse.IsSuccessStatusCode)
+			{
+				_logger.LogError("AI Service keyword extraction failed: {StatusCode} - {Content}", 
+					keywordResponse.StatusCode, await keywordResponse.Content.ReadAsStringAsync());
+				return StatusCode(502, "Anahtar kelime çıkarma işlemi başarısız");
+			}
+
+			keywords = await keywordResponse.Content.ReadFromJsonAsync<List<string>>(cancellationToken: cancellationToken) ?? new List<string>();
+			
+			if (keywords.Count == 0)
+			{
+				return BadRequest("Olay metninden anahtar kelime çıkarılamadı.");
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "AI Service communication failed");
+			return StatusCode(502, "AI servisi ile iletişim kurulamadı");
+		}
+
+		// Search with extracted keywords
+		var results = await _searchProvider.SearchAsync(keywords, cancellationToken);
+		await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = "Search" });
 
 		// Store history
 		try
@@ -55,7 +88,7 @@ public class SearchController : ControllerBase
 			var history = new SearchHistory
 			{
 				UserId = userId,
-				Keywords = string.Join(",", request.Keywords),
+				Keywords = string.Join(",", keywords),
 				ResultCount = results.Count,
 				CreatedAt = DateTime.UtcNow
 			};

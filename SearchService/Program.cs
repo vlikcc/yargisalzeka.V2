@@ -46,6 +46,14 @@ public class Program
 			http.BaseAddress = new Uri(baseUrl);
 		});
 
+		// REST client for AI Service
+		builder.Services.AddHttpClient("AIService", (sp, http) =>
+		{
+			var config = sp.GetRequiredService<IConfiguration>();
+			var baseUrl = config["AIService:BaseUrl"] ?? "http://aiservice:5012";
+			http.BaseAddress = new Uri(baseUrl);
+		});
+
 		// OpenSearch client
 		builder.Services.AddSingleton<IOpenSearchClient>(sp =>
 		{
