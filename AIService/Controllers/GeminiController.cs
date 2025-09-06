@@ -41,7 +41,14 @@ public class GeminiController : ControllerBase
     if (access == null) return StatusCode(502, "Subscription service unreachable");
     if (access.KeywordExtractionRemaining == 0) return Forbid("Limit tükendi");
         var result = await _service.ExtractKeywordsFromCaseAsync(request.CaseText);
-    await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.KeywordExtraction });
+        if (result.Count > 0)
+        {
+            await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.KeywordExtraction });
+        }
+        else
+        {
+            _logger.LogInformation("Keyword extraction fallback/empty result - quota not consumed (user {UserId})", userId);
+        }
         return Ok(result);
     }
 
@@ -58,7 +65,14 @@ public class GeminiController : ControllerBase
     if (access == null) return StatusCode(502, "Subscription service unreachable");
     if (access.CaseAnalysisRemaining == 0) return Forbid("Limit tükendi");
         var result = await _service.AnalyzeDecisionRelevanceAsync(request.CaseText, request.DecisionText);
-    await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.CaseAnalysis });
+        if (!string.Equals(result.Explanation, "Analiz sırasında hata oluştu", StringComparison.OrdinalIgnoreCase))
+        {
+            await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.CaseAnalysis });
+        }
+        else
+        {
+            _logger.LogInformation("Relevance analysis fallback - quota not consumed (user {UserId})", userId);
+        }
         return Ok(result);
     }
 
@@ -75,7 +89,14 @@ public class GeminiController : ControllerBase
     if (access == null) return StatusCode(502, "Subscription service unreachable");
     if (access.PetitionRemaining == 0) return Forbid("Limit tükendi");
         var result = await _service.GeneratePetitionTemplateAsync(request.CaseText, request.RelevantDecisions);
-    await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.Petition });
+        if (!string.IsNullOrWhiteSpace(result) && !result.StartsWith("Dilekçe şablonu oluşturulamadı", StringComparison.OrdinalIgnoreCase))
+        {
+            await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.Petition });
+        }
+        else
+        {
+            _logger.LogInformation("Petition generation fallback - quota not consumed (user {UserId})", userId);
+        }
         return Ok(result);
     }
 
@@ -123,7 +144,14 @@ public class GeminiController : ControllerBase
     if (access == null) return StatusCode(502, "Subscription service unreachable");
     if (access.CaseAnalysisRemaining == 0) return Forbid("Limit tükendi");
         var result = await _service.AnalyzeCaseTextAsync(request.CaseText);
-    await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.CaseAnalysis });
+        if (!string.IsNullOrWhiteSpace(result.AnalysisResult) && !string.Equals(result.AnalysisResult, "Olay metni analiz hatası", StringComparison.OrdinalIgnoreCase))
+        {
+            await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.CaseAnalysis });
+        }
+        else
+        {
+            _logger.LogInformation("Case analysis fallback - quota not consumed (user {UserId})", userId);
+        }
         return Ok(result);
     }
 

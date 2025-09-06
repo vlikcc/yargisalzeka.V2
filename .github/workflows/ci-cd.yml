@@ -11,6 +11,7 @@ env:
   AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
   AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
   IMAGE_TAG: ${{ github.sha }}
+  NAMESPACE: yargisalzeka
 
 jobs:
   build-test:
@@ -158,10 +159,30 @@ jobs:
           resource-group: ${{ env.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
 
+      - name: Ensure namespace exists
+        run: |
+          kubectl get ns "$NAMESPACE" 2>/dev/null || kubectl create ns "$NAMESPACE"
+
+      - name: Apply Gemini API secret (requires secret GEMINI_API_KEY)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "GEMINI_API_KEY GitHub secret tanımlı değil. (Settings > Secrets > Actions)" >&2
+            exit 1
+          fi
+          kubectl -n "$NAMESPACE" create secret generic gemini-api \
+            --from-literal=Gemini__ApiKey="$GEMINI_API_KEY" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          # Ensure env on deployment will be refreshed even if image unchanged
+          if kubectl -n "$NAMESPACE" get deployment/aiservice >/dev/null 2>&1; then
+            kubectl -n "$NAMESPACE" set env deployment/aiservice --from=secret/gemini-api --overwrite
+          fi
+
       - name: Update deployments to new images
         run: |
           set -euo pipefail
-          ns=yargisalzeka
+          ns=$NAMESPACE
           reg=${REGISTRY}
           tag=${IMAGE_TAG}
 
@@ -176,7 +197,17 @@ jobs:
       - name: Wait for rollout
         run: |
           set -euo pipefail
-          ns=yargisalzeka
+          ns=$NAMESPACE
           for d in apigateway identityservice subscriptionservice documentservice searchservice aiservice frontend; do
             kubectl -n "$ns" rollout status deployment/$d --timeout=300s || exit 1
           done
+
+      - name: AIService health & key presence smoke check
+        run: |
+          set -e
+          kubectl -n "$NAMESPACE" get pods -l app=aiservice
+          echo "--- Recent AIService logs (looking for Gemini key log) ---"
+          kubectl -n "$NAMESPACE" logs deploy/aiservice --tail=80 || true
+          # Optional: internal health probe
+          kubectl run curltester --image=alpine/curl:latest -n "$NAMESPACE" --rm -i --restart=Never -- \
+            sh -c 'wget -q -O - http://aiservice:5012/health || exit 1'
