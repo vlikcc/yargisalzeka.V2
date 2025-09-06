@@ -26,17 +26,21 @@ export function useSearchFlow() {
       // UI için uyumlu format oluştur
       const analysisText = (backendResponse as any).analysis?.analysisResult || (backendResponse as any).analysis?.AnalysisResult || 'Analiz bulunamadı';
       const kwList = backendResponse.keywords?.keywords?.filter(k => k && !k.toLowerCase().includes('error')) || [];
+      const decisionArray = Array.isArray((backendResponse as any).decisions) ? (backendResponse as any).decisions : [];
       const searchResponse: SearchResponse = {
         analysis: { AnalysisResult: analysisText } as any,
         keywords: { keywords: kwList },
         searchId: Date.now().toString(),
-        scoredDecisions: backendResponse.decisions.map(d => ({
-          id: d.id.toString(),
-          title: `${d.yargitayDairesi} - ${d.esasNo}/${d.kararNo}`,
-          score: 1,
-          court: d.yargitayDairesi,
-          summary: d.kararMetni.length > 200 ? d.kararMetni.substring(0, 200) + '...' : d.kararMetni
-        }))
+        scoredDecisions: decisionArray.map((d: any) => {
+          const metin: string = d?.kararMetni || '';
+            return {
+              id: (d?.id ?? '').toString(),
+              title: `${d?.yargitayDairesi ?? ''} - ${d?.esasNo ?? ''}/${d?.kararNo ?? ''}`.trim(),
+              score: 1,
+              court: d?.yargitayDairesi,
+              summary: metin.length > 200 ? metin.substring(0, 200) + '...' : metin
+            };
+        })
       };
       
       setResult(searchResponse);
