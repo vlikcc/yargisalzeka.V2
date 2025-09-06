@@ -52,48 +52,51 @@ public class SearchController : ControllerBase
 		var aiClient = _factory.CreateClient("AIService");
 		if (!string.IsNullOrEmpty(token)) aiClient.DefaultRequestHeaders.Add("Authorization", token);
 		
-		List<string> keywords;
-		string caseAnalysis;
-		
+		List<string> keywords = new();
+		string caseAnalysis = "";
+
+		// Anahtar kelime çıkarma - hata durumunda boş liste ile devam
 		try
 		{
-			// Keywords extraction
 			var keywordRequest = new KeywordExtractionRequest(request.CaseText);
 			var keywordResponse = await aiClient.PostAsJsonAsync("api/gemini/extract-keywords", keywordRequest, cancellationToken);
-			
-			if (!keywordResponse.IsSuccessStatusCode)
+			if (keywordResponse.IsSuccessStatusCode)
 			{
-				_logger.LogError("AI Service keyword extraction failed: {StatusCode} - {Content}", 
-					keywordResponse.StatusCode, await keywordResponse.Content.ReadAsStringAsync());
-				return StatusCode(502, "Anahtar kelime çıkarma işlemi başarısız");
+				keywords = await keywordResponse.Content.ReadFromJsonAsync<List<string>>(cancellationToken: cancellationToken) ?? new List<string>();
+				if (keywords.Count == 0) _logger.LogWarning("No keywords extracted from case text");
 			}
-
-			keywords = await keywordResponse.Content.ReadFromJsonAsync<List<string>>(cancellationToken: cancellationToken) ?? new List<string>();
-			
-			// Case analysis
-			var analysisRequest = new { CaseText = request.CaseText };
-			var analysisResponse = await aiClient.PostAsJsonAsync("api/gemini/analyze-case", analysisRequest, cancellationToken);
-			
-			if (!analysisResponse.IsSuccessStatusCode)
+			else
 			{
-				_logger.LogError("AI Service case analysis failed: {StatusCode} - {Content}", 
-					analysisResponse.StatusCode, await analysisResponse.Content.ReadAsStringAsync());
-				return StatusCode(502, "Olay analizi işlemi başarısız");
-			}
-
-			var analysisResult = await analysisResponse.Content.ReadFromJsonAsync<CaseAnalysisResponse>(cancellationToken: cancellationToken);
-			caseAnalysis = analysisResult?.AnalysisResult ?? "Analiz tamamlanamadı";
-			
-			if (keywords.Count == 0)
-			{
-				_logger.LogWarning("No keywords extracted from case text");
-				keywords = new List<string>(); // Boş liste olarak devam et
+				var body = await keywordResponse.Content.ReadAsStringAsync();
+				_logger.LogWarning("Keyword extraction degraded. Status {Status} Body: {Body}", keywordResponse.StatusCode, body);
 			}
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, "AI Service communication failed");
-			return StatusCode(502, "AI servisi ile iletişim kurulamadı");
+			_logger.LogWarning(ex, "Keyword extraction exception - continuing without keywords");
+		}
+
+		// Olay analizi - hata durumunda açıklayıcı fallback mesaj
+		try
+		{
+			var analysisRequest = new { CaseText = request.CaseText };
+			var analysisResponse = await aiClient.PostAsJsonAsync("api/gemini/analyze-case", analysisRequest, cancellationToken);
+			if (analysisResponse.IsSuccessStatusCode)
+			{
+				var analysisResult = await analysisResponse.Content.ReadFromJsonAsync<CaseAnalysisResponse>(cancellationToken: cancellationToken);
+				caseAnalysis = analysisResult?.AnalysisResult ?? "";
+			}
+			else
+			{
+				var body = await analysisResponse.Content.ReadAsStringAsync();
+				_logger.LogWarning("Case analysis degraded. Status {Status} Body: {Body}", analysisResponse.StatusCode, body);
+				caseAnalysis = "Analiz şu anda gerçekleştirilemedi";
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "Case analysis exception - using fallback message");
+			caseAnalysis = "Analiz şu anda gerçekleştirilemedi";
 		}
 
 		// Search with extracted keywords (boş olsa bile çalışır)
