@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using AIService.Services;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,9 +46,28 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Health Checks
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck("gemini-key", () =>
+    {
+        var key = builder.Configuration["Gemini:ApiKey"];
+        return string.IsNullOrWhiteSpace(key)
+            ? HealthCheckResult.Unhealthy("Gemini API key missing")
+            : HealthCheckResult.Healthy();
+    });
 
 var app = builder.Build();
+
+// Gemini API key visibility (masked) for operational diagnostics
+var geminiKey = app.Configuration["Gemini:ApiKey"];
+if (string.IsNullOrWhiteSpace(geminiKey))
+{
+    app.Logger.LogWarning("Gemini API key is NOT configured (Gemini:ApiKey). AI endpoints will return fallback results.");
+}
+else
+{
+    var prefix = geminiKey.Length <= 4 ? geminiKey : geminiKey.Substring(0, 4);
+    app.Logger.LogInformation("Gemini API key configured (len={Length}, prefix={Prefix}***).", geminiKey.Length, prefix);
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
