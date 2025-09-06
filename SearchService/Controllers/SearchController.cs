@@ -118,15 +118,21 @@ public class SearchController : ControllerBase
 			_logger.LogWarning(ex, "Arama geçmişi kaydedilemedi");
 		}
 
-		// Kapsamlı response döndür
-		var response = new SearchResponse(
-			Decisions: results,
-			Analysis: new CaseAnalysisResponse(caseAnalysis),
-			Keywords: new KeywordExtractionResult(keywords),
-			TotalResults: results.Count
-		);
-
-		return Ok(response);
+		// Kapsamlı response döndür (frontend camelCase beklentisi)
+		return Ok(new
+		{
+			decisions = results.Select(r => new {
+				id = r.Id,
+				yargitayDairesi = r.YargitayDairesi,
+				esasNo = r.EsasNo,
+				kararNo = r.KararNo,
+				kararTarihi = r.KararTarihi,
+				kararMetni = r.KararMetni
+			}).ToList(),
+			analysis = new { analysisResult = caseAnalysis },
+			keywords = new { keywords = keywords },
+			totalResults = results.Count
+		});
 	}
 
 	// GET api/search/history?take=20
