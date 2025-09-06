@@ -9,7 +9,7 @@ import { PetitionGenerator } from '../../components/petition/PetitionGenerator';
 export default function SearchPage() {
   const [text, setText] = useState('');
   const { results, loading, error } = useSearch();
-  const { runSearch, result, isSearching, error: flowError, loadHistory } = useSearchFlow();
+  const { runSearch, result, isSearching, isAnalyzing, isSearchingDecisions, isExtractingKeywords, error: flowError, loadHistory } = useSearchFlow();
 
   useEffect(() => { void loadHistory(); }, [loadHistory]);
 
@@ -26,7 +26,10 @@ export default function SearchPage() {
         <textarea value={text} onChange={e => setText(e.target.value)} rows={5} className="w-full border rounded p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Olay metnini girin" />
         <Button disabled={loading} className="font-medium">{loading ? 'Aranıyor...' : 'Ara'}</Button>
       </form>
-      {(loading || isSearching) && <LoadingState message="Arama yapılıyor" />}
+  {(loading || isSearching) && <LoadingState message="İstek başlatıldı" />}
+  {isAnalyzing && <LoadingState message="Analiz yapılıyor" />}
+  {isSearchingDecisions && <LoadingState message="Kararlar aranıyor" />}
+  {isExtractingKeywords && <LoadingState message="Anahtar kelimeler çıkarılıyor" />}
       {(error || flowError) && (
         <ErrorState description={error || flowError || 'Hata'} onRetry={() => { void runSearch({ caseText: text }); }} />
       )}

@@ -5,6 +5,9 @@ import { aiService } from '../services/aiService';
 
 export function useSearchFlow() {
   const [isSearching, setIsSearching] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSearchingDecisions, setIsSearchingDecisions] = useState(false);
+  const [isExtractingKeywords, setIsExtractingKeywords] = useState(false);
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [history, setHistory] = useState<SearchHistoryItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -20,30 +23,50 @@ export function useSearchFlow() {
     setIsSearching(true);
     setError(null);
     try {
-      // Backend'den kapsamlı response al (AI analiz + arama sonuçları)
-  const backendResponse = await searchService.searchCases(request.caseText);
-      
-      // UI için uyumlu format oluştur
-      const analysisText = (backendResponse as any).analysis?.analysisResult || (backendResponse as any).analysis?.AnalysisResult || 'Analiz bulunamadı';
-      const kwList = backendResponse.keywords?.keywords?.filter(k => k && !k.toLowerCase().includes('error')) || [];
-      const decisionArray = Array.isArray((backendResponse as any).decisions) ? (backendResponse as any).decisions : [];
-      const searchResponse: SearchResponse = {
-        analysis: { AnalysisResult: analysisText } as any,
-        keywords: { keywords: kwList },
+      // 1) Önce sadece analiz (kullanıcıya hızlı feedback)
+  setIsAnalyzing(true);
+  const caseAnalysis = await aiService.analyzeCase({ caseText: request.caseText }).catch(() => ({ summary: 'Analiz hatası' } as any));
+  setIsAnalyzing(false);
+      const initialResult: SearchResponse = {
+        analysis: { AnalysisResult: caseAnalysis?.summary || caseAnalysis?.analysisResult || 'Analiz yok' } as any,
+        keywords: { keywords: [] },
         searchId: Date.now().toString(),
-        scoredDecisions: decisionArray.map((d: any) => {
-          const metin: string = d?.kararMetni || '';
-            return {
-              id: (d?.id ?? '').toString(),
-              title: `${d?.yargitayDairesi ?? ''} - ${d?.esasNo ?? ''}/${d?.kararNo ?? ''}`.trim(),
-              score: 1,
-              court: d?.yargitayDairesi,
-              summary: metin.length > 200 ? metin.substring(0, 200) + '...' : metin
-            };
-        })
+        scoredDecisions: []
       };
-      
-      setResult(searchResponse);
+      setResult(initialResult);
+
+      // 2) Karar araması (backend search + AI fallback zaten orada da var)
+  setIsSearchingDecisions(true);
+  const backendResponse = await searchService.searchCases(request.caseText);
+      const decisionArray = Array.isArray((backendResponse as any).decisions) ? (backendResponse as any).decisions : [];
+      initialResult.scoredDecisions = decisionArray.map((d: any) => {
+        const metin: string = d?.kararMetni || '';
+        return {
+          id: (d?.id ?? '').toString(),
+          title: `${d?.yargitayDairesi ?? ''} - ${d?.esasNo ?? ''}/${d?.kararNo ?? ''}`.trim(),
+          score: 1,
+          court: d?.yargitayDairesi,
+          summary: metin.length > 200 ? metin.substring(0, 200) + '...' : metin
+        };
+      });
+      // Eğer backend analysis gelmişse onu tercih et (daha tutarlı olabilir)
+      const backendAnalysisText = (backendResponse as any).analysis?.analysisResult || (backendResponse as any).analysis?.AnalysisResult;
+      if (backendAnalysisText) initialResult.analysis = { AnalysisResult: backendAnalysisText } as any;
+      setResult({ ...initialResult });
+
+      // 3) Anahtar kelimeler (analiz ve kararlar göründükten sonra)
+      setIsSearchingDecisions(false);
+      setIsExtractingKeywords(true);
+      try {
+        const kwResp = await aiService.extractKeywords({ caseText: request.caseText });
+        const cleanKw = (kwResp.keywords || []).filter(k => k && !k.toLowerCase().includes('error'));
+        setResult(r => r ? { ...r, keywords: { keywords: cleanKw } } : r);
+      } catch {
+        // keywords isteği başarısız ise sessizce yoksay
+      } finally {
+        setIsExtractingKeywords(false);
+      }
+
       refreshSubscription();
       loadHistory();
     } catch (e) {
@@ -54,5 +77,5 @@ export function useSearchFlow() {
     }
   }, [isSearching, refreshSubscription, loadHistory]);
 
-  return { isSearching, result, history, error, runSearch, loadHistory };
+  return { isSearching, isAnalyzing, isSearchingDecisions, isExtractingKeywords, result, history, error, runSearch, loadHistory };
 }
