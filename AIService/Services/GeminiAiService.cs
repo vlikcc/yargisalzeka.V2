@@ -31,7 +31,21 @@ public class GeminiAiService : IGeminiAiService
         try
         {
             var text = await SendPromptAsync(prompt, ProModel);
-            return new CaseAnalysisResponse { AnalysisResult = text };
+            // Normalize: extract the line starting with ANALIZ: if present
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var analitik = lines.FirstOrDefault(l => l.StartsWith("ANALIZ:", StringComparison.OrdinalIgnoreCase));
+                if (analitik != null)
+                {
+                    var idx = analitik.IndexOf(':');
+                    if (idx >= 0 && idx < analitik.Length - 1)
+                        text = analitik[(idx + 1)..].Trim();
+                }
+                // fallback shorten very long raw text
+                if (text.Length > 1200) text = text[..1200] + "...";
+            }
+            return new CaseAnalysisResponse { AnalysisResult = string.IsNullOrWhiteSpace(text) ? "" : text };
         }
         catch (Exception ex)
         {
@@ -54,17 +68,32 @@ Sadece anahtar kelimeleri virgülle ayırarak listele. Açıklama yazma.
         try
         {
             var text = await SendPromptAsync(prompt, FlashModel);
-            var kws = text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                          .Select(k => k.Trim())
-                          .Where(k => k.Length > 0)
-                          .Distinct(StringComparer.OrdinalIgnoreCase)
-                          .ToList();
+            if (string.IsNullOrWhiteSpace(text)) return new List<string>();
+            // Replace newlines and semicolons with commas to simplify splitting
+            var normalized = text.Replace('\n', ',').Replace(';', ',');
+            // Remove quotes
+            normalized = normalized.Replace("\"", "").Replace("'", "");
+            // Split on commas and also handle bullet markers
+            var rawParts = normalized
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .SelectMany(p => p.Split('•', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .SelectMany(p => p.Split('-', StringSplitOptions.TrimEntries))
+                .Select(p => p.Trim())
+                .Where(p => p.Length > 0);
+
+            var kws = rawParts
+                .Select(k => k.ToLowerInvariant())
+                .Where(k => k.Length <= 60 && !k.Contains("error") && !k.StartsWith("analiz"))
+                .Select(k => k.Trim())
+                .Distinct()
+                .ToList();
             return kws;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Anahtar kelime çıkarma hatası");
-            return ex.Message.Split(',').ToList();
+            // Kullanıcıya ham hata metnini anahtar kelime gibi göstermemek için boş liste dönüyoruz
+            return new List<string>();
         }
     }
 
@@ -141,42 +170,89 @@ Bölümler:
         if (string.IsNullOrWhiteSpace(_apiKey)) throw new InvalidOperationException("Gemini API key missing.");
         var client = _httpClientFactory.CreateClient("Gemini");
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_apiKey}";
-        using var request = new HttpRequestMessage(HttpMethod.Post, url)
+        // Minimal manual retry (no Polly dependency) with exponential backoff + jitter
+        var attempt = 0;
+        var maxAttempts = 3; // initial + 2 retries
+        var rnd = new Random();
+        while (true)
         {
-            Content = new StringContent(JsonSerializer.Serialize(new
+            attempt++;
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
             {
-                contents = new[]
+                Content = new StringContent(JsonSerializer.Serialize(new
                 {
-                    new
+                    contents = new[]
                     {
-                        parts = new[]{ new { text = prompt } }
+                        new
+                        {
+                            parts = new[]{ new { text = prompt } }
+                        }
+                    }
+                }), Encoding.UTF8, "application/json")
+            };
+
+            HttpResponseMessage? response = null;
+            string body = string.Empty;
+            try
+            {
+                response = await client.SendAsync(request);
+                body = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode)
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(body);
+                        var text = doc.RootElement
+                            .GetProperty("candidates")[0]
+                            .GetProperty("content")
+                            .GetProperty("parts")[0]
+                            .GetProperty("text")
+                            .GetString();
+                        return text ?? string.Empty;
+                    }
+                    catch (Exception parseEx)
+                    {
+                        _logger.LogError(parseEx, "Gemini API response parse error (attempt {Attempt}): {Body}", attempt, body);
+                        // Parsing problem unlikely to be solved by retry unless malformed transient JSON; we retry once more if attempts remain.
+                        if (attempt >= maxAttempts) return string.Empty;
                     }
                 }
-            }), Encoding.UTF8, "application/json")
-        };
+                else
+                {
+                    var status = (int)response.StatusCode;
+                    var transient = status is 429 or 500 or 502 or 503 or 504; // treat these as retryable
+                    if (!transient)
+                    {
+                        _logger.LogWarning("Gemini non-retryable status {Status} (attempt {Attempt}): {Body}", response.StatusCode, attempt, body);
+                        // Don't leak status code details upward to UI; generic message.
+                        throw new HttpRequestException("Gemini API request failed");
+                    }
+                    _logger.LogWarning("Gemini transient failure {Status} (attempt {Attempt}/{MaxAttempts}): {Body}", response.StatusCode, attempt, maxAttempts, body);
+                }
+            }
+            catch (TaskCanceledException tex)
+            {
+                _logger.LogWarning(tex, "Gemini request timeout/cancelled (attempt {Attempt}/{MaxAttempts})", attempt, maxAttempts);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Gemini request exception (attempt {Attempt}/{MaxAttempts})", attempt, maxAttempts);
+            }
+            finally
+            {
+                response?.Dispose();
+            }
 
-        using var response = await client.SendAsync(request);
-        var body = await response.Content.ReadAsStringAsync();
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogWarning("Gemini API failure {Status}: {Body}", response.StatusCode, body);
-            throw new HttpRequestException($"Gemini API error {(int)response.StatusCode}");
-        }
-        try
-        {
-            using var doc = JsonDocument.Parse(body);
-            var text = doc.RootElement
-                .GetProperty("candidates")[0]
-                .GetProperty("content")
-                .GetProperty("parts")[0]
-                .GetProperty("text")
-                .GetString();
-            return text ?? string.Empty;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Gemini API response parse error: {Body}", body);
-            return string.Empty;
+            if (attempt >= maxAttempts)
+            {
+                // Give up gracefully; outer method will choose fallback behavior.
+                throw new HttpRequestException("Gemini API request failed after retries");
+            }
+
+            // Exponential backoff with jitter (base 250ms)
+            var delayMs = (int)(Math.Pow(2, attempt - 1) * 250) + rnd.Next(0, 150);
+            await Task.Delay(delayMs);
         }
     }
 

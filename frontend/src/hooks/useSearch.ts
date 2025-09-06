@@ -21,12 +21,14 @@ export function useSearchFlow() {
     setError(null);
     try {
       // Backend'den kapsamlı response al (AI analiz + arama sonuçları)
-      const backendResponse = await searchService.searchCases(request.caseText);
+  const backendResponse = await searchService.searchCases(request.caseText);
       
       // UI için uyumlu format oluştur
+      const analysisText = (backendResponse as any).analysis?.analysisResult || (backendResponse as any).analysis?.AnalysisResult || 'Analiz bulunamadı';
+      const kwList = backendResponse.keywords?.keywords?.filter(k => k && !k.toLowerCase().includes('error')) || [];
       const searchResponse: SearchResponse = {
-        analysis: { AnalysisResult: backendResponse.analysis.analysisResult },
-        keywords: { keywords: backendResponse.keywords.keywords },
+        analysis: { AnalysisResult: analysisText } as any,
+        keywords: { keywords: kwList },
         searchId: Date.now().toString(),
         scoredDecisions: backendResponse.decisions.map(d => ({
           id: d.id.toString(),
