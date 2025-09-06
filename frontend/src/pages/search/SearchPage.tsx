@@ -31,18 +31,28 @@ export default function SearchPage() {
         <ErrorState description={error || flowError || 'Hata'} onRetry={() => { void runSearch({ caseText: text }); }} />
       )}
       <div className="space-y-2">
-        {result?.scoredDecisions && result.scoredDecisions.length > 0 && (
-          <div className="p-3 border rounded bg-white">
-            <div className="font-semibold mb-1">Analiz Özeti</div>
-            <p className="text-sm text-gray-600">{result.analysis.summary}</p>
-            {result.keywords && (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {result.keywords.keywords.map(k => (
-                  <span key={k} className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">{k}</span>
-                ))}
+        {result && (
+          <div className="p-4 border rounded bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-semibold">Olay Analizi</div>
+              {result.scoredDecisions && result.scoredDecisions.length === 0 && (
+                <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">Karar bulunamadı</span>
+              )}
+            </div>
+            <p className="text-sm text-gray-700 whitespace-pre-line">
+              {result.analysis.summary || (result as any).analysis.AnalysisResult || 'Özet yok'}
+            </p>
+            {result.keywords && result.keywords.keywords.length > 0 && (
+              <div className="mt-3">
+                <div className="text-xs font-medium text-gray-500 mb-1">Anahtar Kelimeler</div>
+                <div className="flex flex-wrap gap-1">
+                  {result.keywords.keywords.map(k => (
+                    <span key={k} className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">{k}</span>
+                  ))}
+                </div>
               </div>
             )}
-            <div className="mt-3">
+            <div className="mt-4">
               <PetitionGenerator currentSearch={result} />
             </div>
           </div>
@@ -54,7 +64,12 @@ export default function SearchPage() {
             {r.summary && <p className="text-sm mt-1 text-gray-600">{r.summary}</p>}
           </div>
         ))}
-        {!loading && !isSearching && results.length === 0 && <div className="text-sm text-gray-500">Sonuç yok</div>}
+        {!loading && !isSearching && result && result.scoredDecisions && result.scoredDecisions.length === 0 && (
+          <div className="text-sm text-gray-500">Girilen metin için uygun karar bulunamadı. Yine de analiz ve anahtar kelimeler üretildi.</div>
+        )}
+        {!loading && !isSearching && !result && results.length === 0 && (
+          <div className="text-sm text-gray-500">Henüz arama yapılmadı.</div>
+        )}
       </div>
     </div>
   );
