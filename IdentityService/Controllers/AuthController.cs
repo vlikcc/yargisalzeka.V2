@@ -93,7 +93,7 @@ namespace IdentityService.Controllers
                 _logger.LogWarning(ex, "Trial abonelik atama denemesi başarısız (opsiyonel)");
             }
 
-            var token = await GenerateJwtToken(user);
+            var token = GenerateJwtToken(user);
             return Ok(new AuthResponse { Token = token.Token, ExpiresAtUtc = token.ExpiresAtUtc });
         }
 
@@ -119,7 +119,7 @@ namespace IdentityService.Controllers
             }
 
             _logger.LogInformation("Kullanıcı giriş yaptı: {Email}", request.Email);
-            var token = await GenerateJwtToken(user);
+            var token = GenerateJwtToken(user);
             return Ok(new AuthResponse { Token = token.Token, ExpiresAtUtc = token.ExpiresAtUtc });
         }
 
@@ -152,7 +152,7 @@ namespace IdentityService.Controllers
         // Admin endpoints
         [HttpGet("users")]
         [Authorize(Roles = "Admin,SuperAdmin")]
-        public async Task<IActionResult> GetAllUsers()
+    public IActionResult GetAllUsers()
         {
             var users = _userManager.Users.Select(u => new UserDto
             {
@@ -224,7 +224,7 @@ namespace IdentityService.Controllers
 
         [HttpGet("admin-stats")]
         [Authorize(Roles = "Admin,SuperAdmin")]
-        public async Task<IActionResult> GetAdminStats()
+    public IActionResult GetAdminStats()
         {
             var totalUsers = _userManager.Users.Count();
             var activeUsers = _userManager.Users.Count(u => u.IsActive);
@@ -273,7 +273,7 @@ namespace IdentityService.Controllers
             return Ok(new { Message = "SuperAdmin kullanıcısı başarıyla oluşturuldu" });
         }
 
-        private async Task<(string Token, DateTime ExpiresAtUtc)> GenerateJwtToken(ApplicationUser user)
+    private (string Token, DateTime ExpiresAtUtc) GenerateJwtToken(ApplicationUser user)
         {
             var key = _configuration["Jwt:Key"] ?? "insecure-dev-key-change-me-at-least-32-chars";
             if (key == "insecure-dev-key-change-me-at-least-32-chars")
