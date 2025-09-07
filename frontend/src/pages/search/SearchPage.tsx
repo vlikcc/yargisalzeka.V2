@@ -11,13 +11,28 @@ export default function SearchPage() {
   const [text, setText] = useState('');
   const { results, loading, error } = useSearch();
   const { runSearch, result, isSearching, isAnalyzing, isSearchingDecisions, isExtractingKeywords, error: flowError, loadHistory } = useSearchFlow();
+  
+  // Kelime sayısını hesapla
+  const wordCount = text.trim().split(/\s+/).filter(word => word.length > 0).length;
+  const maxWords = 300;
+  const isOverLimit = wordCount > maxWords;
 
   useEffect(() => { void loadHistory(); }, [loadHistory]);
 
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    const newWordCount = newText.trim().split(/\s+/).filter(word => word.length > 0).length;
+    
+    // 300 kelimeden fazla ise güncellemeyi engelle
+    if (newWordCount <= maxWords || newText.length < text.length) {
+      setText(newText);
+    }
+  };
+  
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim()) return;
-  void runSearch({ caseText: text });
+    if (!text.trim() || isOverLimit) return;
+    void runSearch({ caseText: text });
   };
 
   return (
@@ -40,19 +55,39 @@ export default function SearchPage() {
         <div className="relative">
           <textarea 
             value={text} 
-            onChange={e => setText(e.target.value)} 
+            onChange={handleTextChange}
             rows={6} 
-            className="w-full p-4 pr-12 bg-white/50 backdrop-blur-sm border border-neutral-200/50 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500/50 focus:bg-white transition-all duration-200 resize-none" 
+            className={`w-full p-4 pr-12 bg-white/50 backdrop-blur-sm border rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500/50 focus:bg-white transition-all duration-200 resize-none ${
+              isOverLimit 
+                ? 'border-error-300 focus:ring-error-500/10 focus:border-error-500/50' 
+                : 'border-neutral-200/50'
+            }`}
             placeholder="Örneğin: Komşum bahçesine ağaç dikti ve bu ağaç benim evimin ışığını engelliyor..." 
           />
           <Sparkles className="absolute top-4 right-4 w-5 h-5 text-primary-400 animate-pulse" />
         </div>
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-neutral-500">
+        
+        {/* Kelime sayacı */}
+        <div className="flex items-center justify-between text-xs">
+          <p className="text-neutral-500">
             Detaylı anlatım daha iyi sonuçlar sağlar
           </p>
+          <div className={`font-medium ${
+            isOverLimit 
+              ? 'text-error-600' 
+              : wordCount > maxWords * 0.8 
+                ? 'text-amber-600' 
+                : 'text-neutral-500'
+          }`}>
+            {wordCount}/{maxWords} kelime
+            {isOverLimit && (
+              <span className="ml-2 text-error-600">• Limit aşıldı</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-end">
           <Button 
-            disabled={loading || isSearching || !text.trim()} 
+            disabled={loading || isSearching || !text.trim() || isOverLimit} 
             className="btn-primary px-6 py-2.5 font-semibold shadow-glow"
           >
             {(loading || isSearching) ? (
