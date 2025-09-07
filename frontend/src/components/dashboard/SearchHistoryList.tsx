@@ -26,8 +26,12 @@ export function SearchHistoryList() {
         <ul className="space-y-2 overflow-auto pr-1 text-sm">
           {history.slice(0, 8).map(h => (
             <li key={h.id} className="border rounded p-2 hover:bg-gray-50">
-              <div className="font-medium line-clamp-1 text-gray-700">{h.title}</div>
-              <div className="text-xs text-gray-500">Skor: {h.score}</div>
+              <div className="font-medium line-clamp-1 text-gray-700">
+                {h.title || `Arama #${h.id}`}
+              </div>
+              <div className="text-xs text-gray-500">
+                {h.score !== undefined && h.score > 0 ? `Skor: ${h.score}` : 'Arama Kaydı'}
+              </div>
             </li>
           ))}
         </ul>

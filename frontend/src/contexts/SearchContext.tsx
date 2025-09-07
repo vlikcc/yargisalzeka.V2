@@ -33,9 +33,19 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initial);
 
   const loadHistory = useCallback(async () => {
-    const h = await searchService.getHistory();
-    const list: ResultItem[] = h.map(it => ({ id: it.id, title: it.id, score: 0, summary: it.analysis.summary }));
-    dispatch({ type: 'HISTORY_SET', payload: list });
+    try {
+      const h = await searchService.getHistory();
+      const list: ResultItem[] = h.map(it => ({
+        id: it.id,
+        title: it.analysis?.summary?.substring(0, 100) + '...' || `Arama #${it.id}`,
+        score: 0,
+        summary: it.analysis?.summary || 'Özet mevcut değil'
+      }));
+      dispatch({ type: 'HISTORY_SET', payload: list });
+    } catch (error) {
+      console.error('Geçmiş yüklenirken hata:', error);
+      dispatch({ type: 'HISTORY_SET', payload: [] });
+    }
   }, []);
 
   return (
