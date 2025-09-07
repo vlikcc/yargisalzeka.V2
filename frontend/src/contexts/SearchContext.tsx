@@ -1,7 +1,7 @@
 import { createContext, useReducer, useContext, ReactNode, useCallback } from 'react';
 import { searchService } from '../services/searchService';
 
-interface ResultItem { id: string; title: string; score: number; court?: string; summary?: string; }
+interface ResultItem { id: string; title: string; score: number; court?: string; summary?: string; createdAt?: string; }
 interface State { results: ResultItem[]; history: ResultItem[]; loading: boolean; error: string | null; }
 type Action =
   | { type: 'SEARCH_START' }
@@ -35,12 +35,23 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const loadHistory = useCallback(async () => {
     try {
       const h = await searchService.getHistory();
-      const list: ResultItem[] = h.map(it => ({
-        id: it.id,
-        title: it.analysis?.summary?.substring(0, 100) + '...' || `Arama #${it.id}`,
-        score: 0,
-        summary: it.analysis?.summary || 'Özet mevcut değil'
-      }));
+      const list: ResultItem[] = h.map(it => {
+        // Keywords'lerden ilk 3 tanesini al ve title oluştur
+        const keywordSummary = it.keywords.length > 0 
+          ? it.keywords.slice(0, 3).join(', ') + (it.keywords.length > 3 ? '...' : '')
+          : 'Anahtar kelime yok';
+        
+        return {
+          id: it.id.toString(),
+          title: keywordSummary,
+          score: it.resultCount,
+          summary: it.keywords.length > 0 
+            ? `Anahtar Kelimeler: ${it.keywords.join(', ')}`
+            : 'Bu arama için anahtar kelime bulunamadı',
+          court: `${it.resultCount} sonuç`,
+          createdAt: it.createdAt
+        };
+      });
       dispatch({ type: 'HISTORY_SET', payload: list });
     } catch (error) {
       console.error('Geçmiş yüklenirken hata:', error);

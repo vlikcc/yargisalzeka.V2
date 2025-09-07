@@ -18,7 +18,16 @@ export interface SearchResponse {
   searchId: string;
   scoredDecisions?: ScoredDecision[];
 } 
-export interface SearchHistoryItem { id: string; createdAt: string; analysis: CaseAnalysisResponse; topDecisionIds?: string[]; }
+// Backend'den gelen gerçek veri yapısı
+export interface SearchHistoryItem { 
+  id: number; 
+  keywords: string[]; 
+  resultCount: number; 
+  createdAt: string; 
+}
+
+// Eski interface (ileride kullanılabilir)
+export interface LegacySearchHistoryItem { id: string; createdAt: string; analysis: CaseAnalysisResponse; topDecisionIds?: string[]; }
 export interface SaveDecisionRequest { decisionId: string; notes?: string; }
 
 // Backend DecisionDto format

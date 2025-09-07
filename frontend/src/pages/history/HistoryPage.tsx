@@ -3,7 +3,7 @@ import { useSearch } from '../../contexts/SearchContext';
 import { Button } from '../../components/ui/button';
 import { LoadingState } from '../../components/common/LoadingState';
 import { ErrorState } from '../../components/common/ErrorState';
-import { History, Clock, Search as SearchIcon, RefreshCw } from 'lucide-react';
+import { History, Clock, Search as SearchIcon, RefreshCw, Hash, Calendar, Eye } from 'lucide-react';
 
 export default function HistoryPage() {
   const { history, loadHistory } = useSearch();
@@ -137,15 +137,39 @@ export default function HistoryPage() {
               )}
               
               <div className="flex items-center justify-between mt-4 pt-3 border-t border-neutral-200/50">
-                <div className="flex items-center space-x-2 text-xs text-neutral-500">
-                  <Clock className="w-3 h-3" />
-                  <span>Arama Tarihi</span>
+                <div className="flex items-center space-x-4 text-xs text-neutral-500">
+                  <div className="flex items-center space-x-1">
+                    <Calendar className="w-3 h-3" />
+                    <span>
+                      {h.createdAt 
+                        ? new Date(h.createdAt).toLocaleDateString('tr-TR', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : 'Tarih bilinmiyor'
+                      }
+                    </span>
+                  </div>
+                  {h.court && (
+                    <div className="flex items-center space-x-1">
+                      <Hash className="w-3 h-3" />
+                      <span>{h.court}</span>
+                    </div>
+                  )}
                 </div>
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   className="text-primary-600 hover:text-primary-700"
+                  onClick={() => {
+                    // TODO: Modal aç veya detay sayfasına yönlendir
+                    alert(`Arama #${h.id} detayları:\n\n${h.summary}`);
+                  }}
                 >
+                  <Eye className="w-3 h-3 mr-1" />
                   Detayı Gör
                 </Button>
               </div>
