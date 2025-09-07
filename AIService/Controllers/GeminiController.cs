@@ -152,11 +152,23 @@ public class GeminiController : ControllerBase
                 _logger.LogError(exAccess, "Subscription usage endpoint hatası");
             }
             if (access == null) return StatusCode(502, "Subscription service unreachable");
+            if (access == null)
+            {
+                _logger.LogWarning("AnalyzeCase subscription usage yanıtı null döndü");
+                return StatusCode(502, new { error = "Subscription service unreachable (usage null)" });
+            }
             if (access.CaseAnalysisRemaining == 0) return Forbid("Limit tükendi");
             var result = await _service.AnalyzeCaseTextAsync(request.CaseText);
             if (!string.IsNullOrWhiteSpace(result.AnalysisResult) && !string.Equals(result.AnalysisResult, "Olay metni analiz hatası", StringComparison.OrdinalIgnoreCase))
             {
-                await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.CaseAnalysis });
+                try
+                {
+                    await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.CaseAnalysis });
+                }
+                catch (Exception exConsume)
+                {
+                    _logger.LogWarning(exConsume, "CaseAnalysis consume çağrısı başarısız ancak analiz sonucu kullanıcıya dönüyor (userId bilinmiyor olabilir)");
+                }
             }
             else
             {
