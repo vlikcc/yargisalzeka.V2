@@ -25,24 +25,8 @@ export default function DashboardPage() {
   }, [usage]);
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Section */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-neutral-900 mb-2">
-            Hoş geldin{authState.user ? `, ${authState.user.firstName || authState.user.email?.split('@')[0]}` : ''}!
-          </h1>
-          <p className="text-neutral-600">
-            Yargısal Zeka platformuna hoş geldin. Bugünkü istatistiklerin aşağıda.
-          </p>
-        </div>
-        <div className="hidden md:flex items-center space-x-2 px-4 py-2 bg-primary-100 text-primary-700 rounded-lg">
-          <Target className="w-4 h-4" />
-          <span className="text-sm font-medium">Beta</span>
-        </div>
-      </div>
-
-      {/* Main Stats Grid */}
+    <div className="space-y-10">
+      {/* Üst İstatistik Kartları */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Toplam İşlem"
@@ -83,7 +67,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Charts and History Section */}
+  {/* Orta Bölüm: Kullanım Analizi + Geçmiş */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <div className="card p-6">
@@ -136,7 +120,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Bottom Stats */}
+  {/* Alt Kartlar */}
       <div className="grid gap-6 md:grid-cols-3">
         <StatCard
           title="Anahtar Kelime"
