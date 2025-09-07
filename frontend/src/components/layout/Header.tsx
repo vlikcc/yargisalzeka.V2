@@ -2,7 +2,9 @@ import { Bell, User, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-export function Header() {
+interface HeaderProps { className?: string }
+
+export function Header({ className }: HeaderProps) {
   const { state, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -12,7 +14,7 @@ export function Header() {
   };
 
   return (
-    <header className="h-16 glass border-b border-neutral-200/50 backdrop-blur-md flex items-center px-6 justify-between">
+    <header className={`h-16 glass border-b border-neutral-200/50 backdrop-blur-md flex items-center px-6 justify-between ${className || ''}`}>      
       <div className="flex items-center space-x-3">
         <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
           <div className="w-5 h-5 bg-white rounded-sm"></div>
