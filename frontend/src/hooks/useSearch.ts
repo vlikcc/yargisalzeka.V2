@@ -23,10 +23,12 @@ export function useSearchFlow() {
     setIsSearching(true);
     setError(null);
     try {
-      // 1) Önce sadece analiz (kullanıcıya hızlı feedback)
+  const t0 = performance.now();
+      // 1) Analiz (kullanıcıya hızlı feedback)
   setIsAnalyzing(true);
   const caseAnalysis = await aiService.analyzeCase({ caseText: request.caseText }).catch(() => ({ summary: 'Analiz hatası' } as any));
   setIsAnalyzing(false);
+  const tAnalysis = performance.now();
       const initialResult: SearchResponse = {
         analysis: { AnalysisResult: caseAnalysis?.summary || caseAnalysis?.analysisResult || 'Analiz yok' } as any,
         keywords: { keywords: [] },
@@ -34,10 +36,28 @@ export function useSearchFlow() {
         scoredDecisions: []
       };
       setResult(initialResult);
+      // 2) Anahtar kelimeler (analiz sonrası hemen)
+      setIsExtractingKeywords(true);
+  let tKeywords: number | undefined = undefined;
+      try {
+        const kwResp: any = await aiService.extractKeywords({ caseText: request.caseText });
+        // Backend şu an düz liste (string[]) döndürüyor; ileride { keywords: string[] } dönebilir.
+        const rawKeywords: string[] = Array.isArray(kwResp)
+          ? kwResp
+          : (kwResp?.keywords && Array.isArray(kwResp.keywords) ? kwResp.keywords : []);
+        const cleanKw = rawKeywords.filter(k => k && !k.toLowerCase().includes('error'));
+        setResult(r => r ? { ...r, keywords: { keywords: cleanKw } } : r);
+  tKeywords = performance.now();
+      } catch {
+        // keywords isteği başarısız ise sessizce yoksay
+      } finally {
+        setIsExtractingKeywords(false);
+      }
 
-      // 2) Karar araması (backend search + AI fallback zaten orada da var)
-  setIsSearchingDecisions(true);
-  const backendResponse = await searchService.searchCases(request.caseText);
+      // 3) Karar araması (artık anahtar kelimeler elde edildi; backend şu an sadece CaseText kullanıyor)
+      setIsSearchingDecisions(true);
+      const backendResponse = await searchService.searchCases(request.caseText);
+      const tSearch = performance.now();
       const decisionArray = Array.isArray((backendResponse as any).decisions) ? (backendResponse as any).decisions : [];
       initialResult.scoredDecisions = decisionArray.map((d: any) => {
         const metin: string = d?.kararMetni || '';
@@ -49,26 +69,20 @@ export function useSearchFlow() {
           summary: metin.length > 200 ? metin.substring(0, 200) + '...' : metin
         };
       });
-      // Eğer backend analysis gelmişse onu tercih et (daha tutarlı olabilir)
       const backendAnalysisText = (backendResponse as any).analysis?.analysisResult || (backendResponse as any).analysis?.AnalysisResult;
       if (backendAnalysisText) initialResult.analysis = { AnalysisResult: backendAnalysisText } as any;
-      setResult({ ...initialResult });
-
-      // 3) Anahtar kelimeler (analiz ve kararlar göründükten sonra)
+      setResult(r => ({ ...(r || initialResult), scoredDecisions: initialResult.scoredDecisions, analysis: initialResult.analysis }));
       setIsSearchingDecisions(false);
-      setIsExtractingKeywords(true);
-      try {
-        const kwResp: any = await aiService.extractKeywords({ caseText: request.caseText });
-        // Backend şu an düz liste (string[]) döndürüyor; ileride { keywords: string[] } dönebilir.
-        const rawKeywords: string[] = Array.isArray(kwResp)
-          ? kwResp
-          : (kwResp?.keywords && Array.isArray(kwResp.keywords) ? kwResp.keywords : []);
-        const cleanKw = rawKeywords.filter(k => k && !k.toLowerCase().includes('error'));
-        setResult(r => r ? { ...r, keywords: { keywords: cleanKw } } : r);
-      } catch {
-        // keywords isteği başarısız ise sessizce yoksay
-      } finally {
-        setIsExtractingKeywords(false);
+
+      // Süre loglama (development)
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.log('[SEARCH FLOW] ms:', {
+          analysis: Math.round(tAnalysis - t0),
+          keywords: typeof tKeywords !== 'undefined' ? Math.round(tKeywords - tAnalysis) : null,
+          search: Math.round(tSearch - (tKeywords ?? tAnalysis)),
+          total: Math.round(tSearch - t0)
+        });
       }
 
       refreshSubscription();

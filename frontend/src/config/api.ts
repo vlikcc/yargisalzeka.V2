@@ -27,7 +27,7 @@ export const API_CONFIG = {
   // 2) Dev server (vite) -> talk to local ApiGateway
   // 3) Production build -> same-origin "/api" (Nginx proxies to ApiGateway)
   BASE_URL: SAFE_BASE,
-  TIMEOUT: 30000
+  TIMEOUT: Number(import.meta.env.VITE_HTTP_TIMEOUT || 45000)
 };
 
 export const ENDPOINTS = {
