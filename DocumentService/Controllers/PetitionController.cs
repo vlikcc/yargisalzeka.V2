@@ -15,11 +15,13 @@ public class PetitionController : ControllerBase
 {
     private readonly IHttpClientFactory _factory;
     private readonly ILogger<PetitionController> _logger;
+    private readonly IPetitionGenerationService _petitionService;
 
-    public PetitionController(IHttpClientFactory factory, ILogger<PetitionController> logger)
+    public PetitionController(IHttpClientFactory factory, ILogger<PetitionController> logger, IPetitionGenerationService petitionService)
     {
         _factory = factory;
         _logger = logger;
+        _petitionService = petitionService;
     }
 
     [HttpPost("generate")]
@@ -40,10 +42,44 @@ public class PetitionController : ControllerBase
     await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = "Petition" });
         return Ok(new PetitionResponse { Content = content });
     }
+
+    [HttpGet("history")]
+    public async Task<IActionResult> GetHistory([FromQuery] int take = 20)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        try
+        {
+            var history = await _petitionService.GetHistoryAsync(userId, take);
+            var response = history.Select(p => new PetitionHistoryDto
+            {
+                Id = p.Id.ToString(),
+                Topic = p.Topic,
+                CreatedAt = p.CreatedAt,
+                Status = "Completed" // Sabit değer, ileride genişletilebilir
+            }).ToList();
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Dilekçe geçmişi yüklenirken hata oluştu - UserId: {UserId}", userId);
+            return StatusCode(500, "Geçmiş yüklenemedi");
+        }
+    }
 }
 
 public record PetitionRequest(string Topic, string CaseText, List<string>? Decisions);
 public record PetitionResponse { public string Content { get; set; } = string.Empty; }
+public record PetitionHistoryDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Topic { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string? DownloadUrl { get; set; }
+}
 
 public class UsageStatsDto
 {
