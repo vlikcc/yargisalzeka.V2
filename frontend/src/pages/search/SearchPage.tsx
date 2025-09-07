@@ -118,7 +118,7 @@ export default function SearchPage() {
                 {isAnalyzing && "Olay Analiz Ediliyor"}
                 {isSearchingDecisions && "Benzer Kararlar Aranıyor"}
                 {isExtractingKeywords && "Anahtar Kelimeler Çıkarılıyor"}
-                {(loading || isSearching) && !ısAnalyzing && !isSearchingDecisions && !isExtractingKeywords && "İşlem Başlatıldı"}
+                {(loading || isSearching) && !isAnalyzing && !isSearchingDecisions && !isExtractingKeywords && "İşlem Başlatıldı"}
               </p>
               <p className="text-sm text-neutral-500">Lütfen bekleyin, bu birkaç saniye sürebilir...</p>
             </div>
