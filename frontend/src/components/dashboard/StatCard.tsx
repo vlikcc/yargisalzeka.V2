@@ -25,20 +25,20 @@ export function StatCard({
   trendValue
 }: StatCardProps) {
   return (
-    <div className={cn('card p-6 group', className)}>
+    <div className={cn('card hover-lift group', className)}>
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
-          <p className="text-sm font-medium text-neutral-600 mb-1">{title}</p>
-          <div className="flex items-baseline space-x-2">
-            <span className="text-3xl font-bold text-neutral-900">
-              {loading ? <Skeleton className="h-9 w-20" /> : value ?? '-'}
+          <p className="text-sm font-semibold text-neutral-500 mb-2 uppercase tracking-wide">{title}</p>
+          <div className="flex items-baseline space-x-3">
+            <span className="text-3xl font-bold gradient-text">
+              {loading ? <Skeleton className="h-9 w-24 rounded-lg" /> : value ?? '-'}
             </span>
             {trend && trendValue && !loading && (
               <div className={cn(
-                'flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium',
-                trend === 'up' && 'bg-success-100 text-success-700',
-                trend === 'down' && 'bg-error-100 text-error-700',
-                trend === 'neutral' && 'bg-neutral-100 text-neutral-700'
+                'flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold animate-slide-in-right',
+                trend === 'up' && 'bg-gradient-to-r from-success-100 to-success-200 text-success-800',
+                trend === 'down' && 'bg-gradient-to-r from-error-100 to-error-200 text-error-800',
+                trend === 'neutral' && 'bg-gradient-to-r from-neutral-100 to-neutral-200 text-neutral-800'
               )}>
                 {trend === 'up' && <TrendingUp className="w-3 h-3" />}
                 {trend === 'down' && <TrendingDown className="w-3 h-3" />}
@@ -48,8 +48,8 @@ export function StatCard({
           </div>
         </div>
         {icon && (
-          <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center group-hover:bg-primary-200 transition-colors duration-200">
-            <div className="text-primary-600">
+          <div className="w-14 h-14 bg-gradient-to-br from-primary-100 to-primary-200 rounded-2xl flex items-center justify-center group-hover:shadow-glow transition-all duration-300 group-hover:scale-110">
+            <div className="text-primary-700">
               {icon}
             </div>
           </div>
@@ -57,8 +57,8 @@ export function StatCard({
       </div>
 
       {description && (
-        <p className="text-sm text-neutral-500 leading-relaxed">
-          {loading ? <Skeleton className="h-4 w-full" /> : description}
+        <p className="text-sm text-neutral-600 leading-relaxed border-t border-neutral-100 pt-4">
+          {loading ? <Skeleton className="h-4 w-full rounded" /> : description}
         </p>
       )}
     </div>

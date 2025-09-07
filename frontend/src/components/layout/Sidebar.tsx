@@ -15,37 +15,37 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 
 const navigationItems = [
-  { to: '/app', label: 'Dashboard', icon: Home },
-  { to: '/app/search', label: 'Akıllı Arama', icon: Search },
-  { to: '/app/petitions', label: 'Dilekçeler', icon: FileText },
-  { to: '/app/history', label: 'Geçmiş', icon: History },
-  { to: '/app/subscription', label: 'Abonelik', icon: CreditCard },
-  { to: '/app/profile', label: 'Profil', icon: User },
+  { to: '/app', label: 'Dashboard', icon: Home, gradient: 'from-blue-500 to-blue-700' },
+  { to: '/app/search', label: 'Akıllı Arama', icon: Search, gradient: 'from-primary-500 to-primary-700' },
+  { to: '/app/petitions', label: 'Dilekçeler', icon: FileText, gradient: 'from-green-500 to-green-700' },
+  { to: '/app/history', label: 'Geçmiş', icon: History, gradient: 'from-amber-500 to-amber-700' },
+  { to: '/app/subscription', label: 'Abonelik', icon: CreditCard, gradient: 'from-purple-500 to-purple-700' },
+  { to: '/app/profile', label: 'Profil', icon: User, gradient: 'from-pink-500 to-pink-700' },
 ];
 
 const adminNavigationItems = [
-  { to: '/admin', label: 'Admin Dashboard', icon: Shield },
-  { to: '/admin/users', label: 'Kullanıcı Yönetimi', icon: Users },
-  { to: '/admin/monitoring', label: 'Sistem Monitoring', icon: Activity },
+  { to: '/admin', label: 'Admin Dashboard', icon: Shield, gradient: 'from-red-500 to-red-700' },
+  { to: '/admin/users', label: 'Kullanıcı Yönetimi', icon: Users, gradient: 'from-orange-500 to-orange-700' },
+  { to: '/admin/monitoring', label: 'Sistem Monitoring', icon: Activity, gradient: 'from-cyan-500 to-cyan-700' },
 ];
 
 export function Sidebar() {
   const { state } = useAuth();
   const isAdmin = state.user?.role === 'Admin' || state.user?.role === 'SuperAdmin';
   return (
-    <aside className="w-64 glass border-r border-neutral-200/50 backdrop-blur-md hidden md:flex flex-col">
+    <aside className="w-72 glass border-r border-white/10 backdrop-blur-xl hidden lg:flex flex-col">
       {/* Logo Section */}
-      <div className="h-16 flex items-center px-6 border-b border-neutral-200/50">
+      <div className="h-16 flex items-center px-6 border-b border-white/10">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-            <div className="w-5 h-5 bg-white rounded-sm"></div>
+          <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center shadow-glow animate-float">
+            <div className="w-6 h-6 bg-white rounded-lg"></div>
           </div>
-          <span className="text-lg font-semibold text-neutral-900">Yargısal Zeka</span>
+          <span className="text-lg font-bold gradient-text">Yargısal Zeka</span>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-6 space-y-2">
         {navigationItems.map(item => {
           const Icon = item.icon;
           return (
@@ -54,20 +54,37 @@ export function Sidebar() {
               to={item.to}
               end={item.to === '/app'}
               className={({ isActive }) =>
-                `flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
+                `relative flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 group overflow-hidden ${
                   isActive
-                    ? 'bg-primary-600 text-white shadow-soft'
-                    : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                    ? 'text-white shadow-glow'
+                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/50'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-neutral-500 group-hover:text-neutral-700'}`} />
-                  <span>{item.label}</span>
                   {isActive && (
-                    <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full"></div>
+                    <div className={`absolute inset-0 bg-gradient-to-r ${item.gradient} rounded-xl`}></div>
                   )}
+                  <div className="relative flex items-center space-x-3 w-full">
+                    <div className={`p-2 rounded-lg transition-all duration-300 ${
+                      isActive 
+                        ? 'bg-white/20' 
+                        : 'bg-neutral-100 group-hover:bg-primary-100'
+                    }`}>
+                      <Icon className={`w-5 h-5 ${
+                        isActive 
+                          ? 'text-white' 
+                          : 'text-neutral-600 group-hover:text-primary-600'
+                      }`} />
+                    </div>
+                    <span className={`flex-1 ${
+                      isActive ? 'font-semibold' : ''
+                    }`}>{item.label}</span>
+                    {isActive && (
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                    )}
+                  </div>
                 </>
               )}
             </NavLink>
@@ -77,50 +94,74 @@ export function Sidebar() {
         {/* Admin Navigation - Only visible for admin users */}
         {isAdmin && (
           <>
-            <div className="border-t border-neutral-200/50 pt-4 mt-4">
-              <div className="px-3 py-2 text-xs font-semibold text-neutral-500 uppercase tracking-wide">
+            <div className="mt-6 pt-6 border-t border-white/10">
+              <div className="px-4 py-2 text-xs font-bold text-neutral-400 uppercase tracking-wider">
                 Admin Paneli
               </div>
-              {adminNavigationItems.map(item => {
-                const Icon = item.icon;
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) =>
-                      `flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group ${
-                        isActive
-                          ? 'bg-red-600 text-white shadow-soft'
-                          : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
-                      }`
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-neutral-500 group-hover:text-neutral-700'}`} />
-                        <span>{item.label}</span>
-                        {isActive && (
-                          <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full"></div>
-                        )}
-                      </>
-                    )}
-                  </NavLink>
-                );
-              })}
+              <div className="mt-2 space-y-2">
+                {adminNavigationItems.map(item => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={({ isActive }) =>
+                        `relative flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 group overflow-hidden ${
+                          isActive
+                            ? 'text-white shadow-glow'
+                            : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/50'
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          {isActive && (
+                            <div className={`absolute inset-0 bg-gradient-to-r ${item.gradient} rounded-xl`}></div>
+                          )}
+                          <div className="relative flex items-center space-x-3 w-full">
+                            <div className={`p-2 rounded-lg transition-all duration-300 ${
+                              isActive 
+                                ? 'bg-white/20' 
+                                : 'bg-neutral-100 group-hover:bg-red-100'
+                            }`}>
+                              <Icon className={`w-5 h-5 ${
+                                isActive 
+                                  ? 'text-white' 
+                                  : 'text-neutral-600 group-hover:text-red-600'
+                              }`} />
+                            </div>
+                            <span className={`flex-1 ${
+                              isActive ? 'font-semibold' : ''
+                            }`}>{item.label}</span>
+                            {isActive && (
+                              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
             </div>
           </>
         )}
       </nav>
 
       {/* Footer Section */}
-      <div className="p-4 border-t border-neutral-200/50">
-        <div className="flex items-center space-x-3 p-3 bg-neutral-50 rounded-lg">
-          <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
-            <BarChart3 className="w-4 h-4 text-primary-600" />
+      <div className="p-6 border-t border-white/10">
+        <div className="glass-card p-4 hover:shadow-glow transition-all duration-300 cursor-pointer">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl flex items-center justify-center shadow-soft">
+              <BarChart3 className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-neutral-900">Kullanım İstatistikleri</p>
+              <p className="text-xs text-neutral-500">Aylık kullanımınızı takip edin</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-neutral-900">Kullanım İstatistikleri</p>
-            <p className="text-xs text-neutral-500">Aylık kullanımınızı takip edin</p>
+          <div className="mt-3 h-2 bg-neutral-100 rounded-full overflow-hidden">
+            <div className="h-full w-3/4 bg-gradient-to-r from-primary-400 to-primary-600 rounded-full animate-pulse-gentle"></div>
           </div>
         </div>
       </div>
