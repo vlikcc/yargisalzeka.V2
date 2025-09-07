@@ -37,7 +37,15 @@ public class SubscriptionCheckMiddleware
                 var bearer = context.Request.Headers["Authorization"].ToString();
                 if (!string.IsNullOrEmpty(bearer)) client.DefaultRequestHeaders.Add("Authorization", bearer);
 
-                var current = await client.GetFromJsonAsync<object>("api/subscription/current");
+                object? current = null;
+                try
+                {
+                    current = await client.GetFromJsonAsync<object>("api/subscription/current");
+                }
+                catch (Exception exFetchCurrent)
+                {
+                    _logger.LogError(exFetchCurrent, "Subscription service 'current' endpoint erişim hatası");
+                }
                 if (current == null)
                 {
                     context.Response.StatusCode = 502;
@@ -45,7 +53,15 @@ public class SubscriptionCheckMiddleware
                     return;
                 }
 
-                var remaining = await client.GetFromJsonAsync<CheckStatusDto>("api/subscription/remaining-credits");
+                CheckStatusDto? remaining = null;
+                try
+                {
+                    remaining = await client.GetFromJsonAsync<CheckStatusDto>("api/subscription/remaining-credits");
+                }
+                catch (Exception exFetchRemaining)
+                {
+                    _logger.LogError(exFetchRemaining, "Subscription service 'remaining-credits' endpoint erişim hatası");
+                }
                 if (remaining == null)
                 {
                     context.Response.StatusCode = 502;
@@ -68,9 +84,9 @@ public class SubscriptionCheckMiddleware
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Abonelik kontrolü sırasında hata oluştu");
+                _logger.LogError(ex, "Abonelik kontrolü sırasında beklenmeyen hata");
                 context.Response.StatusCode = 500;
-                await context.Response.WriteAsJsonAsync(new { error = "Abonelik kontrolü sırasında hata oluştu" });
+                await context.Response.WriteAsJsonAsync(new { error = "Abonelik kontrolü sırasında beklenmeyen hata" });
                 return;
             }
         }

@@ -135,24 +135,40 @@ public class GeminiController : ControllerBase
     [ProducesResponseType(typeof(CaseAnalysisResponse), 200)]
     public async Task<IActionResult> AnalyzeCase([FromBody] CaseAnalysisRequest request)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-        if (string.IsNullOrEmpty(userId)) return Unauthorized();
-    var sub = _factory.CreateClient("Subscription");
-    var token = Request.Headers["Authorization"].ToString();
-    if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
-    var access = await sub.GetFromJsonAsync<ValidateAccessDto>("api/subscription/usage");
-    if (access == null) return StatusCode(502, "Subscription service unreachable");
-    if (access.CaseAnalysisRemaining == 0) return Forbid("Limit tükendi");
-        var result = await _service.AnalyzeCaseTextAsync(request.CaseText);
-        if (!string.IsNullOrWhiteSpace(result.AnalysisResult) && !string.Equals(result.AnalysisResult, "Olay metni analiz hatası", StringComparison.OrdinalIgnoreCase))
+        try
         {
-            await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.CaseAnalysis });
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+            var sub = _factory.CreateClient("Subscription");
+            var token = Request.Headers["Authorization"].ToString();
+            if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
+            ValidateAccessDto? access = null;
+            try
+            {
+                access = await sub.GetFromJsonAsync<ValidateAccessDto>("api/subscription/usage");
+            }
+            catch (Exception exAccess)
+            {
+                _logger.LogError(exAccess, "Subscription usage endpoint hatası");
+            }
+            if (access == null) return StatusCode(502, "Subscription service unreachable");
+            if (access.CaseAnalysisRemaining == 0) return Forbid("Limit tükendi");
+            var result = await _service.AnalyzeCaseTextAsync(request.CaseText);
+            if (!string.IsNullOrWhiteSpace(result.AnalysisResult) && !string.Equals(result.AnalysisResult, "Olay metni analiz hatası", StringComparison.OrdinalIgnoreCase))
+            {
+                await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.CaseAnalysis });
+            }
+            else
+            {
+                _logger.LogInformation("Case analysis fallback - quota not consumed (user {UserId})", userId);
+            }
+            return Ok(result);
         }
-        else
+        catch (Exception ex)
         {
-            _logger.LogInformation("Case analysis fallback - quota not consumed (user {UserId})", userId);
+            _logger.LogError(ex, "AnalyzeCase endpoint genel hata");
+            return StatusCode(500, new { error = "Analyze-case işlem hatası" });
         }
-        return Ok(result);
     }
 
     [HttpPost("test-token")]

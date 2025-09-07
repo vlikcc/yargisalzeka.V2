@@ -58,8 +58,12 @@ export function useSearchFlow() {
       setIsSearchingDecisions(false);
       setIsExtractingKeywords(true);
       try {
-        const kwResp = await aiService.extractKeywords({ caseText: request.caseText });
-        const cleanKw = (kwResp.keywords || []).filter(k => k && !k.toLowerCase().includes('error'));
+        const kwResp: any = await aiService.extractKeywords({ caseText: request.caseText });
+        // Backend şu an düz liste (string[]) döndürüyor; ileride { keywords: string[] } dönebilir.
+        const rawKeywords: string[] = Array.isArray(kwResp)
+          ? kwResp
+          : (kwResp?.keywords && Array.isArray(kwResp.keywords) ? kwResp.keywords : []);
+        const cleanKw = rawKeywords.filter(k => k && !k.toLowerCase().includes('error'));
         setResult(r => r ? { ...r, keywords: { keywords: cleanKw } } : r);
       } catch {
         // keywords isteği başarısız ise sessizce yoksay
