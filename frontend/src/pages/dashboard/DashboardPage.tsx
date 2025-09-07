@@ -25,7 +25,28 @@ export default function DashboardPage() {
   }, [usage]);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
+      {/* Welcome Section */}
+      <div className="glass-card animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold gradient-text mb-1">
+              Hoş geldiniz, {authState.user?.firstName || 'Kullanıcı'}!
+            </h1>
+            <p className="text-neutral-600">
+              Hukuki araştırma ve analiz platformunuza hoş geldiniz
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/app/search')}
+            className="btn-primary px-6 py-3 font-semibold shadow-glow hidden md:flex items-center"
+          >
+            <Search className="w-4 h-4 mr-2" />
+            Yeni Arama Başlat
+          </button>
+        </div>
+      </div>
+      
       {/* Üst İstatistik Kartları */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -67,18 +88,23 @@ export default function DashboardPage() {
         />
       </div>
 
-  {/* Orta Bölüm: Kullanım Analizi + Geçmiş */}
+      {/* Orta Bölüm: Kullanım Analizi + Geçmiş */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <div className="card p-6">
+          <div className="card">
             <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-semibold text-neutral-900">Kullanım Analizi</h3>
-                <p className="text-sm text-neutral-600">Aylık kullanım trendleriniz</p>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl flex items-center justify-center shadow-soft">
+                  <BarChart3 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-neutral-900">Kullanım Analizi</h3>
+                  <p className="text-sm text-neutral-600">Aylık kullanım trendleriniz</p>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-primary-500 rounded-full"></div>
-                <span className="text-sm text-neutral-600">Bu ay</span>
+              <div className="flex items-center space-x-2 px-3 py-1.5 bg-primary-50 rounded-full">
+                <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse"></div>
+                <span className="text-xs font-medium text-primary-700">Bu ay</span>
               </div>
             </div>
             <UsageChart usage={usage} loading={subscriptionLoading} />
@@ -89,30 +115,51 @@ export default function DashboardPage() {
           <SearchHistoryList />
 
           {/* Quick Actions */}
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold text-neutral-900 mb-4">Hızlı İşlemler</h3>
+          <div className="glass-card">
+            <h3 className="text-lg font-bold text-neutral-900 mb-4">Hızlı İşlemler</h3>
             <div className="space-y-3">
-              <button onClick={() => navigate('/app/search')} className="w-full flex items-center space-x-3 p-3 rounded-lg bg-primary-50 hover:bg-primary-100 text-primary-700 transition-colors duration-200 group">
-                <Search className="w-5 h-5" />
-                <span className="text-sm font-medium">Yeni Arama</span>
-                <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-2 h-2 bg-primary-600 rounded-full"></div>
+              <button 
+                onClick={() => navigate('/app/search')} 
+                className="w-full flex items-center space-x-3 p-4 rounded-xl bg-gradient-to-r from-primary-50 to-primary-100 hover:from-primary-100 hover:to-primary-200 text-primary-700 transition-all duration-200 group hover:shadow-soft"
+              >
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-soft group-hover:shadow-medium transition-all">
+                  <Search className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-semibold flex-1 text-left">Yeni Arama</span>
+                <div className="opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                  <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs">→</span>
+                  </div>
                 </div>
               </button>
 
-              <button onClick={() => navigate('/app/petitions')} className="w-full flex items-center space-x-3 p-3 rounded-lg bg-accent-50 hover:bg-accent-100 text-accent-700 transition-colors duration-200 group">
-                <FileText className="w-5 h-5" />
-                <span className="text-sm font-medium">Dilekçe Oluştur</span>
-                <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-2 h-2 bg-accent-600 rounded-full"></div>
+              <button 
+                onClick={() => navigate('/app/petitions')} 
+                className="w-full flex items-center space-x-3 p-4 rounded-xl bg-gradient-to-r from-accent-50 to-accent-100 hover:from-accent-100 hover:to-accent-200 text-accent-700 transition-all duration-200 group hover:shadow-soft"
+              >
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-soft group-hover:shadow-medium transition-all">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-semibold flex-1 text-left">Dilekçe Oluştur</span>
+                <div className="opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                  <div className="w-6 h-6 bg-accent-600 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs">→</span>
+                  </div>
                 </div>
               </button>
 
-              <button onClick={() => navigate('/app/history')} className="w-full flex items-center space-x-3 p-3 rounded-lg bg-neutral-50 hover:bg-neutral-100 text-neutral-700 transition-colors duration-200 group">
-                <Clock className="w-5 h-5" />
-                <span className="text-sm font-medium">Geçmişi Görüntüle</span>
-                <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-2 h-2 bg-neutral-600 rounded-full"></div>
+              <button 
+                onClick={() => navigate('/app/history')} 
+                className="w-full flex items-center space-x-3 p-4 rounded-xl bg-gradient-to-r from-neutral-50 to-neutral-100 hover:from-neutral-100 hover:to-neutral-200 text-neutral-700 transition-all duration-200 group hover:shadow-soft"
+              >
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-soft group-hover:shadow-medium transition-all">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-semibold flex-1 text-left">Geçmişi Görüntüle</span>
+                <div className="opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                  <div className="w-6 h-6 bg-neutral-600 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs">→</span>
+                  </div>
                 </div>
               </button>
             </div>
@@ -120,7 +167,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-  {/* Alt Kartlar */}
+      {/* Alt Kartlar */}
       <div className="grid gap-6 md:grid-cols-3">
         <StatCard
           title="Anahtar Kelime"

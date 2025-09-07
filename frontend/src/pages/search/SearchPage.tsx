@@ -5,6 +5,7 @@ import { LoadingState } from '../../components/common/LoadingState';
 import { ErrorState } from '../../components/common/ErrorState';
 import { useSearchFlow } from '../../hooks/useSearch';
 import { PetitionGenerator } from '../../components/petition/PetitionGenerator';
+import { Search, Sparkles, FileText, Hash } from 'lucide-react';
 
 export default function SearchPage() {
   const [text, setText] = useState('');
@@ -20,58 +21,172 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-semibold">Arama</h2>
-      <form onSubmit={submit} className="space-y-2">
-        <textarea value={text} onChange={e => setText(e.target.value)} rows={5} className="w-full border rounded p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Olay metnini girin" />
-  <Button disabled={loading || isSearching} className="font-medium">{(loading || isSearching) ? 'Aranıyor...' : 'Ara'}</Button>
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="glass-card">
+        <div className="flex items-center space-x-3 mb-2">
+          <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center shadow-glow">
+            <Search className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold gradient-text">Akıllı Hukuki Arama</h2>
+            <p className="text-sm text-neutral-500">Olayınızı anlatın, size en uygun kararları bulalım</p>
+          </div>
+        </div>
+      </div>
+      
+      {/* Search Form */}
+      <form onSubmit={submit} className="glass-card space-y-4">
+        <div className="relative">
+          <textarea 
+            value={text} 
+            onChange={e => setText(e.target.value)} 
+            rows={6} 
+            className="w-full p-4 pr-12 bg-white/50 backdrop-blur-sm border border-neutral-200/50 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500/50 focus:bg-white transition-all duration-200 resize-none" 
+            placeholder="Örneğin: Komşum bahçesine ağaç dikti ve bu ağaç benim evimin ışığını engelliyor..." 
+          />
+          <Sparkles className="absolute top-4 right-4 w-5 h-5 text-primary-400 animate-pulse" />
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-neutral-500">
+            Detaylı anlatım daha iyi sonuçlar sağlar
+          </p>
+          <Button 
+            disabled={loading || isSearching || !text.trim()} 
+            className="btn-primary px-6 py-2.5 font-semibold shadow-glow"
+          >
+            {(loading || isSearching) ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                Analiz Ediliyor...
+              </>
+            ) : (
+              <>
+                <Search className="w-4 h-4 mr-2" />
+                Ara ve Analiz Et
+              </>
+            )}
+          </Button>
+        </div>
       </form>
-  {(loading || isSearching) && <LoadingState message="İstek başlatıldı" />}
-  {isAnalyzing && <LoadingState message="Analiz yapılıyor" />}
-  {isSearchingDecisions && <LoadingState message="Kararlar aranıyor" />}
-  {isExtractingKeywords && <LoadingState message="Anahtar kelimeler çıkarılıyor" />}
+      {/* Loading States */}
+      {(loading || isSearching || isAnalyzing || isSearchingDecisions || isExtractingKeywords) && (
+        <div className="glass-card animate-slide-up">
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <div className="w-12 h-12 bg-primary-100 rounded-2xl flex items-center justify-center">
+                <div className="w-6 h-6 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-neutral-900">
+                {isAnalyzing && "Olay Analiz Ediliyor"}
+                {isSearchingDecisions && "Benzer Kararlar Aranıyor"}
+                {isExtractingKeywords && "Anahtar Kelimeler Çıkarılıyor"}
+                {(loading || isSearching) && !ısAnalyzing && !isSearchingDecisions && !isExtractingKeywords && "İşlem Başlatıldı"}
+              </p>
+              <p className="text-sm text-neutral-500">Lütfen bekleyin, bu birkaç saniye sürebilir...</p>
+            </div>
+          </div>
+        </div>
+      )}
       {(error || flowError) && (
         <ErrorState description={error || flowError || 'Hata'} onRetry={() => { void runSearch({ caseText: text }); }} />
       )}
-      <div className="space-y-2">
+      {/* Results */}
+      <div className="space-y-4">
         {result && (
-          <div className="p-4 border rounded bg-white">
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-semibold">Olay Analizi</div>
+          <div className="glass-card animate-slide-up">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-700 rounded-xl flex items-center justify-center shadow-soft">
+                  <FileText className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-neutral-900">Olay Analizi</h3>
+                  <p className="text-sm text-neutral-500">Yapay zeka analizi tamamlandı</p>
+                </div>
+              </div>
               {result.scoredDecisions && result.scoredDecisions.length === 0 && (
-                <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">Karar bulunamadı</span>
+                <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
+                  Karar bulunamadı
+                </span>
               )}
             </div>
-            <p className="text-sm text-gray-700 whitespace-pre-line">
-              {result.analysis.summary || (result as any).analysis.AnalysisResult || 'Özet yok'}
-            </p>
+            
+            <div className="bg-neutral-50/50 rounded-xl p-4 mb-4">
+              <p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-line">
+                {result.analysis.summary || (result as any).analysis.AnalysisResult || 'Özet yok'}
+              </p>
+            </div>
+            
             {result.keywords && result.keywords.keywords.length > 0 && (
-              <div className="mt-3">
-                <div className="text-xs font-medium text-gray-500 mb-1">Anahtar Kelimeler</div>
-                <div className="flex flex-wrap gap-1">
+              <div className="mb-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Hash className="w-4 h-4 text-primary-600" />
+                  <h4 className="text-sm font-semibold text-neutral-900">Anahtar Kelimeler</h4>
+                </div>
+                <div className="flex flex-wrap gap-2">
                   {result.keywords.keywords.map(k => (
-                    <span key={k} className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">{k}</span>
+                    <span 
+                      key={k} 
+                      className="px-3 py-1.5 bg-gradient-to-r from-primary-100 to-primary-200 text-primary-800 text-xs font-medium rounded-full hover:shadow-soft transition-all duration-200 cursor-pointer hover:scale-105"
+                    >
+                      {k}
+                    </span>
                   ))}
                 </div>
               </div>
             )}
-            <div className="mt-4">
+            
+            <div className="border-t border-neutral-200/50 pt-4">
               <PetitionGenerator currentSearch={result} />
             </div>
           </div>
         )}
+        {/* Search Results */}
         {results.map(r => (
-          <div key={r.id} className="p-3 border rounded bg-white">
-            <div className="font-medium">{r.title}</div>
-            <div className="text-xs text-gray-500">Skor: {r.score}</div>
-            {r.summary && <p className="text-sm mt-1 text-gray-600">{r.summary}</p>}
+          <div key={r.id} className="card hover-lift p-5 animate-slide-up">
+            <div className="flex items-start justify-between mb-2">
+              <h4 className="font-semibold text-neutral-900 line-clamp-2">{r.title}</h4>
+              <span className="px-2.5 py-1 bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 text-xs font-semibold rounded-full">
+                Skor: {r.score}
+              </span>
+            </div>
+            {r.summary && (
+              <p className="text-sm text-neutral-600 leading-relaxed line-clamp-3">
+                {r.summary}
+              </p>
+            )}
           </div>
         ))}
+        {/* Empty States */}
         {!loading && !isSearching && result && result.scoredDecisions && result.scoredDecisions.length === 0 && (
-          <div className="text-sm text-gray-500">Girilen metin için uygun karar bulunamadı. Yine de analiz ve anahtar kelimeler üretildi.</div>
+          <div className="glass-card text-center py-8">
+            <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-8 h-8 text-amber-600" />
+            </div>
+            <p className="text-sm text-neutral-600">
+              Girilen metin için uygun karar bulunamadı.
+            </p>
+            <p className="text-sm text-neutral-500">
+              Yine de analiz ve anahtar kelimeler üretildi.
+            </p>
+          </div>
         )}
+        
         {!loading && !isSearching && !result && results.length === 0 && (
-          <div className="text-sm text-gray-500">Henüz arama yapılmadı.</div>
+          <div className="glass-card text-center py-12">
+            <div className="w-20 h-20 bg-neutral-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+              <Search className="w-10 h-10 text-neutral-400" />
+            </div>
+            <p className="text-lg font-semibold text-neutral-900 mb-2">
+              Aramaya Başlayın
+            </p>
+            <p className="text-sm text-neutral-500 max-w-md mx-auto">
+              Hukuki olayınızı yukarıdaki alana yazın ve yapay zeka destekli analizimizden yararlanın.
+            </p>
+          </div>
         )}
       </div>
     </div>
