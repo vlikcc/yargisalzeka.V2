@@ -169,7 +169,7 @@ services:
       - SubscriptionService__BaseUrl=${SubscriptionService__BaseUrl:-http://subscriptionservice:5002}
       - OpenSearch__Uri=${OpenSearch__Uri:-http://opensearch:9200}
       - Search__Provider=${Search__Provider:-fulltext}
-      - Database__EnsureCreated=${Database__EnsureCreated:-true}
+      - SEARCH_PROVIDER=fulltext
     ports:
       - "5043:5004"
     depends_on:
