@@ -67,6 +67,7 @@ public class Program
 
 		// Provider selection (env override -> config)
 		var provider = Environment.GetEnvironmentVariable("SEARCH_PROVIDER") ?? builder.Configuration["Search:Provider"] ?? "postgres";
+		builder.Services.AddSingleton<SearchProcessingStore>();
 		if (provider.Equals("opensearch", StringComparison.OrdinalIgnoreCase))
 		{
 			builder.Services.AddScoped<ISearchProvider, OpenSearchProvider>();

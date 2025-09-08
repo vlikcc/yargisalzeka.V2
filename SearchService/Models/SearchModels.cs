@@ -34,4 +34,33 @@ public record SearchResponse(
 	int TotalResults
 );
 
+// Yeni asenkron akış DTO'ları
+public class InitSearchRequest
+{
+	public string CaseText { get; set; } = string.Empty;
+}
+
+public record InitSearchResponse(string SearchId, CaseAnalysisResponse Analysis, KeywordExtractionResult Keywords);
+
+public record ScoredDecisionDto(
+	long Id,
+	string YargitayDairesi,
+	string EsasNo,
+	string KararNo,
+	DateTime? KararTarihi,
+	string KararMetni,
+	int? Score,
+	string? RelevanceExplanation,
+	string? RelevanceSimilarity
+);
+
+public record SearchResultResponse(
+	string SearchId,
+	string Status,
+	CaseAnalysisResponse Analysis,
+	KeywordExtractionResult Keywords,
+	List<ScoredDecisionDto> Decisions,
+	string? Error
+);
+
 
