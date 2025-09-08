@@ -168,7 +168,7 @@ services:
       - Jwt__Audience=${JWT_AUDIENCE:-http://api-gateway:5000}
       - SubscriptionService__BaseUrl=${SubscriptionService__BaseUrl:-http://subscriptionservice:5002}
       - OpenSearch__Uri=${OpenSearch__Uri:-http://opensearch:9200}
-      - Search__Provider=${Search__Provider:-opensearch}
+      - Search__Provider=${Search__Provider:-fulltext}
       - Database__EnsureCreated=${Database__EnsureCreated:-true}
     ports:
       - "5043:5004"
