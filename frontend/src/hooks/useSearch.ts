@@ -56,18 +56,25 @@ export function useSearchFlow() {
 
       // 3) Karar araması (artık anahtar kelimeler elde edildi; backend şu an sadece CaseText kullanıyor)
       setIsSearchingDecisions(true);
-      const backendResponse = await searchService.searchCases(request.caseText);
+      const backendResponse = await searchService.searchCases({
+        caseText: request.caseText,
+        keywords: (initialResult.keywords?.keywords || []).length > 0 ? initialResult.keywords?.keywords : undefined,
+        skipAnalysis: true // Frontend analiz & keywords çıkardı; backend tekrar yapmasın
+      });
       const tSearch = performance.now();
       const decisionArray = Array.isArray((backendResponse as any).decisions) ? (backendResponse as any).decisions : [];
       initialResult.scoredDecisions = decisionArray.map((d: any) => {
         const metin: string = d?.kararMetni || '';
+        const score = typeof d?.score === 'number' ? d.score : null;
         return {
           id: (d?.id ?? '').toString(),
           title: `${d?.yargitayDairesi ?? ''} - ${d?.esasNo ?? ''}/${d?.kararNo ?? ''}`.trim(),
-          score: 1,
+          score: score ?? 0,
           court: d?.yargitayDairesi,
-          summary: metin.length > 200 ? metin.substring(0, 200) + '...' : metin
-        };
+          summary: metin.length > 200 ? metin.substring(0, 200) + '...' : metin,
+          explanation: d?.relevanceExplanation,
+          similarity: d?.relevanceSimilarity
+        } as any;
       });
       const backendAnalysisText = (backendResponse as any).analysis?.analysisResult || (backendResponse as any).analysis?.AnalysisResult;
       if (backendAnalysisText) initialResult.analysis = { AnalysisResult: backendAnalysisText } as any;

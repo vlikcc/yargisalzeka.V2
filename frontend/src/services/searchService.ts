@@ -38,6 +38,9 @@ export interface DecisionDto {
   kararNo: string;
   kararTarihi: string | null;
   kararMetni: string;
+  score?: number | null;
+  relevanceExplanation?: string | null;
+  relevanceSimilarity?: string | null;
 }
 
 // Backend'den gelen kapsamlı response
@@ -53,7 +56,15 @@ export interface BackendSearchResponse {
 }
 
 export const searchService = {
-  searchCases: (caseText: string) => httpClient.post<BackendSearchResponse>(ENDPOINTS.SEARCH.SEARCH, { CaseText: caseText }),
+  searchCases: (payload: { caseText: string; keywords?: string[]; skipAnalysis?: boolean }) =>
+    httpClient.post<BackendSearchResponse>(ENDPOINTS.SEARCH.SEARCH, {
+      caseText: payload.caseText,
+      caseTextNormalized: undefined, // geriye dönük placeholder (backend yoksayar)
+      caseTextTrimmed: undefined,
+      CaseText: payload.caseText, // backend eski alan ismini de destekleyebilir
+      keywords: payload.keywords,
+      skipAnalysis: payload.skipAnalysis ?? false
+    }),
   getHistory: () => httpClient.get<SearchHistoryItem[]>(ENDPOINTS.SEARCH.HISTORY),
   saveDecision: (payload: SaveDecisionRequest) => httpClient.post(ENDPOINTS.SEARCH.SAVE_DECISION, payload)
 };

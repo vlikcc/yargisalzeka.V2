@@ -32,15 +32,14 @@ public class SearchController : ControllerBase
 	[ProducesResponseType(typeof(SearchResponse), 200)]
 	public async Task<IActionResult> Search([FromBody] SearchRequest request, CancellationToken cancellationToken)
 	{
-		if (string.IsNullOrWhiteSpace(request.CaseText))
+		if (string.IsNullOrWhiteSpace(request.CaseText) && (request.Keywords == null || request.Keywords.Count == 0))
 		{
-			return BadRequest("Olay metni gerekli.");
+			return BadRequest("Olay metni veya en az bir anahtar kelime gerekli.");
 		}
 
 		var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
 		if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-		// Subscription check
 		var sub = _factory.CreateClient("Subscription");
 		var token = Request.Headers["Authorization"].ToString();
 		if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
@@ -48,62 +47,97 @@ public class SearchController : ControllerBase
 		if (usage == null) return StatusCode(502, "Subscription service unreachable");
 		if (usage.SearchRemaining == 0) return Forbid("Limit tükendi");
 
-		// AI Service'den hem keywords hem de case analysis al
-		var aiClient = _factory.CreateClient("AIService");
-		if (!string.IsNullOrEmpty(token)) aiClient.DefaultRequestHeaders.Add("Authorization", token);
-		
-		List<string> keywords = new();
-		string caseAnalysis = "";
+		List<string> keywords = request.Keywords?.Where(k => !string.IsNullOrWhiteSpace(k)).Select(k => k.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? new();
+		string caseAnalysis = string.Empty;
 
-		// Anahtar kelime çıkarma - hata durumunda boş liste ile devam
-		try
+		var aiNeeded = !request.SkipAnalysis || keywords.Count == 0; // Eğer frontend her şeyi yaptıysa AI çağrılarını atla
+		if (aiNeeded)
 		{
-			var keywordRequest = new KeywordExtractionRequest(request.CaseText);
-			var keywordResponse = await aiClient.PostAsJsonAsync("api/gemini/extract-keywords", keywordRequest, cancellationToken);
-			if (keywordResponse.IsSuccessStatusCode)
-			{
-				keywords = await keywordResponse.Content.ReadFromJsonAsync<List<string>>(cancellationToken: cancellationToken) ?? new List<string>();
-				if (keywords.Count == 0) _logger.LogWarning("No keywords extracted from case text");
-			}
-			else
-			{
-				var body = await keywordResponse.Content.ReadAsStringAsync();
-				_logger.LogWarning("Keyword extraction degraded. Status {Status} Body: {Body}", keywordResponse.StatusCode, body);
-			}
-		}
-		catch (Exception ex)
-		{
-			_logger.LogWarning(ex, "Keyword extraction exception - continuing without keywords");
-		}
+			var aiClient = _factory.CreateClient("AIService");
+			if (!string.IsNullOrEmpty(token)) aiClient.DefaultRequestHeaders.Add("Authorization", token);
 
-		// Olay analizi - hata durumunda açıklayıcı fallback mesaj
-		try
-		{
-			var analysisRequest = new { CaseText = request.CaseText };
-			var analysisResponse = await aiClient.PostAsJsonAsync("api/gemini/analyze-case", analysisRequest, cancellationToken);
-			if (analysisResponse.IsSuccessStatusCode)
+			// İki isteği paralel (gerektiği ölçüde) ve per-call timeout ile çalıştır
+			var keywordTask = keywords.Count == 0 ? RunWithTimeout(async ct =>
 			{
-				var analysisResult = await analysisResponse.Content.ReadFromJsonAsync<CaseAnalysisResponse>(cancellationToken: cancellationToken);
-				caseAnalysis = analysisResult?.AnalysisResult ?? "";
-			}
-			else
+				var keywordRequest = new KeywordExtractionRequest(request.CaseText);
+				var resp = await aiClient.PostAsJsonAsync("api/gemini/extract-keywords", keywordRequest, ct);
+				if (!resp.IsSuccessStatusCode)
+				{
+					_logger.LogWarning("Keyword extraction degraded (status {Status})", resp.StatusCode);
+					return new List<string>();
+				}
+				return await resp.Content.ReadFromJsonAsync<List<string>>(cancellationToken: ct) ?? new List<string>();
+			}, TimeSpan.FromSeconds(12), cancellationToken) : Task.FromResult(keywords);
+
+			var analysisTask = !request.SkipAnalysis ? RunWithTimeout(async ct =>
 			{
-				var body = await analysisResponse.Content.ReadAsStringAsync();
-				_logger.LogWarning("Case analysis degraded. Status {Status} Body: {Body}", analysisResponse.StatusCode, body);
-				caseAnalysis = "Analiz şu anda gerçekleştirilemedi";
-			}
-		}
-		catch (Exception ex)
-		{
-			_logger.LogWarning(ex, "Case analysis exception - using fallback message");
-			caseAnalysis = "Analiz şu anda gerçekleştirilemedi";
+				var analysisRequest = new { CaseText = request.CaseText };
+				var resp = await aiClient.PostAsJsonAsync("api/gemini/analyze-case", analysisRequest, ct);
+				if (!resp.IsSuccessStatusCode)
+				{
+					_logger.LogWarning("Case analysis degraded (status {Status})", resp.StatusCode);
+					return "Analiz şu anda gerçekleştirilemedi";
+				}
+				var dto = await resp.Content.ReadFromJsonAsync<CaseAnalysisResponse>(cancellationToken: ct);
+				return dto?.AnalysisResult ?? string.Empty;
+			}, TimeSpan.FromSeconds(14), cancellationToken) : Task.FromResult(string.Empty);
+
+			await Task.WhenAll(keywordTask, analysisTask);
+			if (keywords.Count == 0) keywords = (await keywordTask) ?? new List<string>();
+			if (string.IsNullOrEmpty(caseAnalysis)) caseAnalysis = await analysisTask;
 		}
 
-		// Search with extracted keywords (boş olsa bile çalışır)
+		// Arama (keywords boşsa sınırlı fallback: metindeki ilk 5 kelimeyi al)
+		if (keywords.Count == 0 && !string.IsNullOrWhiteSpace(request.CaseText))
+		{
+			keywords = request.CaseText
+				.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+				.Where(w => w.Length > 3)
+				.Take(5)
+				.ToList();
+		}
 		var results = await _searchProvider.SearchAsync(keywords, cancellationToken);
+
+		// Relevance skorlaması: AIService AnalyzeRelevance çağrısı (performans için sınırlı sayıda)
+		var maxScoreCount = int.TryParse(Environment.GetEnvironmentVariable("SEARCH_RELEVANCE_MAX") , out var tmp) ? Math.Clamp(tmp, 1, 50) : 15;
+		var toScore = results.Take(maxScoreCount).ToList();
+		var scores = new Dictionary<long, (int score, string explanation, string similarity)>();
+		try
+		{
+			var aiClientForRelevance = _factory.CreateClient("AIService");
+			var token2 = Request.Headers["Authorization"].ToString();
+			if (!string.IsNullOrEmpty(token2)) aiClientForRelevance.DefaultRequestHeaders.Add("Authorization", token2);
+			var semaphore = new SemaphoreSlim(4); // eş zamanlı istek limiti
+			var tasks = toScore.Select(async d =>
+			{
+				await semaphore.WaitAsync(cancellationToken);
+				try
+				{
+					using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+					cts.CancelAfter(TimeSpan.FromSeconds(10));
+					var body = new { CaseText = request.CaseText, DecisionText = TrimForAi(d.KararMetni, 6000) };
+					var resp = await aiClientForRelevance.PostAsJsonAsync("api/gemini/analyze-relevance", body, cts.Token);
+					if (!resp.IsSuccessStatusCode) return; // sessizce geç
+					var relevance = await resp.Content.ReadFromJsonAsync<RelevanceTemp>(cancellationToken: cts.Token);
+					if (relevance != null)
+					{
+						lock (scores) { scores[d.Id] = (relevance.Score, relevance.Explanation, relevance.Similarity); }
+					}
+				}
+				catch (Exception ex)
+				{
+					_logger.LogDebug(ex, "Relevance scoring hata (decision {DecisionId})", d.Id);
+				}
+				finally { semaphore.Release(); }
+			});
+			await Task.WhenAll(tasks);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "Relevance toplu skorlaması başarısız - skorlar olmadan devam");
+		}
 		await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = "Search" });
 
-		// Store history
 		try
 		{
 			var history = new SearchHistory
@@ -121,7 +155,6 @@ public class SearchController : ControllerBase
 			_logger.LogWarning(ex, "Arama geçmişi kaydedilemedi");
 		}
 
-		// Kapsamlı response döndür (frontend camelCase beklentisi)
 		return Ok(new
 		{
 			decisions = results.Select(r => new {
@@ -130,12 +163,48 @@ public class SearchController : ControllerBase
 				esasNo = r.EsasNo,
 				kararNo = r.KararNo,
 				kararTarihi = r.KararTarihi,
-				kararMetni = r.KararMetni
+				kararMetni = r.KararMetni,
+				score = scores.TryGetValue(r.Id, out var sc) ? sc.score : (int?)null,
+				relevanceExplanation = scores.TryGetValue(r.Id, out var sc2) ? sc2.explanation : null,
+				relevanceSimilarity = scores.TryGetValue(r.Id, out var sc3) ? sc3.similarity : null
 			}).ToList(),
 			analysis = new { analysisResult = caseAnalysis },
 			keywords = new { keywords = keywords },
 			totalResults = results.Count
 		});
+	}
+
+	private async Task<T> RunWithTimeout<T>(Func<CancellationToken, Task<T>> action, TimeSpan timeout, CancellationToken outerToken)
+	{
+		using var cts = CancellationTokenSource.CreateLinkedTokenSource(outerToken);
+		cts.CancelAfter(timeout);
+		try
+		{
+			return await action(cts.Token);
+		}
+		catch (OperationCanceledException) when (cts.IsCancellationRequested && !outerToken.IsCancellationRequested)
+		{
+			_logger.LogWarning("Inner operation timeout {TimeoutMs} ms", timeout.TotalMilliseconds);
+			return default!;
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "RunWithTimeout exception (ignored)");
+			return default!;
+		}
+	}
+
+	private static string TrimForAi(string text, int maxChars)
+	{
+		if (string.IsNullOrEmpty(text)) return text;
+		return text.Length <= maxChars ? text : text.Substring(0, maxChars);
+	}
+
+	private class RelevanceTemp
+	{
+		public int Score { get; set; }
+		public string Explanation { get; set; } = string.Empty;
+		public string Similarity { get; set; } = string.Empty;
 	}
 
 	// GET api/search/history?take=20
