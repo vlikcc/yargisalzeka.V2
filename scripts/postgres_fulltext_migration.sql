@@ -22,25 +22,11 @@ BEGIN
     END IF;
 END$$;
 
--- Create GIN index concurrently (execute separately in production if inside transaction)
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_indexes WHERE tablename='kararlar' AND indexname='idx_kararlar_search_vector'
-    ) THEN
-        EXECUTE 'CREATE INDEX CONCURRENTLY idx_kararlar_search_vector ON kararlar USING GIN (search_vector)';
-    END IF;
-END$$;
+-- Create GIN index (CONCURRENTLY cannot run inside DO/transaction block)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_kararlar_search_vector ON kararlar USING GIN (search_vector);
 
--- Optional trigram index for partial/fuzzy fallback (karar_metni)
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_indexes WHERE tablename='kararlar' AND indexname='idx_kararlar_karar_metni_trgm'
-    ) THEN
-        EXECUTE 'CREATE INDEX CONCURRENTLY idx_kararlar_karar_metni_trgm ON kararlar USING GIN (karar_metni gin_trgm_ops)';
-    END IF;
-END$$;
+-- Optional trigram index (fuzzy/prefix search)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_kararlar_karar_metni_trgm ON kararlar USING GIN (karar_metni gin_trgm_ops);
 
 -- VACUUM ANALYZE to update stats (optional; can be run off-peak)
 -- VACUUM (ANALYZE) kararlar;
