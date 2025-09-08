@@ -65,15 +65,19 @@ public class Program
 			return client;
 		});
 
-		// Provider selection
-		var provider = builder.Configuration["Search:Provider"] ?? "postgres";
+		// Provider selection (env override -> config)
+		var provider = Environment.GetEnvironmentVariable("SEARCH_PROVIDER") ?? builder.Configuration["Search:Provider"] ?? "postgres";
 		if (provider.Equals("opensearch", StringComparison.OrdinalIgnoreCase))
 		{
 			builder.Services.AddScoped<ISearchProvider, OpenSearchProvider>();
 		}
+		else if (provider.Equals("fulltext", StringComparison.OrdinalIgnoreCase))
+		{
+			builder.Services.AddScoped<ISearchProvider, FullTextSearchProvider>();
+		}
 		else
 		{
-			builder.Services.AddScoped<ISearchProvider, PostgresSearchProvider>();
+			builder.Services.AddScoped<ISearchProvider, PostgresSearchProvider>(); // legacy ILIKE
 		}
 
 		var app = builder.Build();
