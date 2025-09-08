@@ -7,6 +7,7 @@ using System.Security.Claims;
 using SearchService.DbContexts;
 using Microsoft.EntityFrameworkCore;
 using SearchService.Entities;
+using System.Collections.Concurrent;
 
 namespace SearchService.Controllers;
 
@@ -19,13 +20,15 @@ public class SearchController : ControllerBase
 	private readonly ILogger<SearchController> _logger;
 	private readonly IHttpClientFactory _factory;
     private readonly SearchDbContext _db;
+	private readonly SearchProcessingStore _store;
 
-	public SearchController(ISearchProvider searchProvider, ILogger<SearchController> logger, IHttpClientFactory factory, SearchDbContext db)
+	public SearchController(ISearchProvider searchProvider, ILogger<SearchController> logger, IHttpClientFactory factory, SearchDbContext db, SearchProcessingStore store)
 	{
 		_searchProvider = searchProvider;
 		_logger = logger;
 		_factory = factory;
         _db = db;
+		_store = store;
 	}
 
 	[HttpPost]
@@ -172,6 +175,184 @@ public class SearchController : ControllerBase
 			keywords = new { keywords = keywords },
 			totalResults = results.Count
 		});
+	}
+
+	// Yeni asenkron iki aşamalı akış
+	// 1) /api/search/init : Analiz + Keyword extraction, arka planda karar araması & skorlamayı tetikler
+	[HttpPost("init")]
+	[ProducesResponseType(typeof(InitSearchResponse), 200)]
+	public async Task<IActionResult> Init([FromBody] InitSearchRequest request, CancellationToken cancellationToken)
+	{
+		if (string.IsNullOrWhiteSpace(request.CaseText)) return BadRequest("Olay metni gerekli.");
+		var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+		if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+		// Abonelik limiti kontrol (sadece Search limiti henüz tüketmeyeceğiz, kararlar hazır olduğunda tüketeceğiz)
+		var subClient = _factory.CreateClient("Subscription");
+		var token = Request.Headers["Authorization"].ToString();
+		if (!string.IsNullOrEmpty(token)) subClient.DefaultRequestHeaders.Add("Authorization", token);
+		var usage = await subClient.GetFromJsonAsync<UsageStatsDto>("api/subscription/usage", cancellationToken);
+		if (usage == null) return StatusCode(502, "Subscription service unreachable");
+		if (usage.SearchRemaining == 0) return Forbid("Limit tükendi");
+
+		var aiClient = _factory.CreateClient("AIService");
+		if (!string.IsNullOrEmpty(token)) aiClient.DefaultRequestHeaders.Add("Authorization", token);
+
+		// Paralel analiz & keyword extraction
+		var keywordTask = RunWithTimeout(async ct =>
+		{
+			var resp = await aiClient.PostAsJsonAsync("api/gemini/extract-keywords", new KeywordExtractionRequest(request.CaseText), ct);
+			if (!resp.IsSuccessStatusCode) return new List<string>();
+			return await resp.Content.ReadFromJsonAsync<List<string>>(cancellationToken: ct) ?? new List<string>();
+		}, TimeSpan.FromSeconds(12), cancellationToken);
+
+		var analysisTask = RunWithTimeout(async ct =>
+		{
+			var resp = await aiClient.PostAsJsonAsync("api/gemini/analyze-case", new { CaseText = request.CaseText }, ct);
+			if (!resp.IsSuccessStatusCode) return "Analiz gerçekleştirilemedi";
+			var dto = await resp.Content.ReadFromJsonAsync<CaseAnalysisResponse>(cancellationToken: ct);
+			return dto?.AnalysisResult ?? string.Empty;
+		}, TimeSpan.FromSeconds(14), cancellationToken);
+
+		await Task.WhenAll(keywordTask, analysisTask);
+		var keywords = (await keywordTask) ?? new List<string>();
+		if (keywords.Count == 0)
+		{
+			keywords = request.CaseText
+				.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+				.Where(w => w.Length > 3)
+				.Take(5)
+				.ToList();
+		}
+		var analysis = await analysisTask ?? string.Empty;
+
+		var searchId = _store.CreatePending(analysis, keywords);
+
+		// Arka plan işini başlat
+		_ = Task.Run(async () => await ProcessSearchAsync(searchId, request.CaseText, keywords, userId!, token), CancellationToken.None);
+
+		return Ok(new InitSearchResponse(searchId,
+			new CaseAnalysisResponse(analysis),
+			new KeywordExtractionResult(keywords)));
+	}
+
+	// 2) /api/search/result/{searchId}
+	[HttpGet("result/{searchId}")]
+	[ProducesResponseType(typeof(SearchResultResponse), 200)]
+	public IActionResult GetResult(string searchId)
+	{
+		if (!_store.TryGet(searchId, out var state)) return NotFound();
+		return Ok(new SearchResultResponse(
+			state.SearchId,
+			state.Status.ToString().ToLower(),
+			new CaseAnalysisResponse(state.Analysis),
+			new KeywordExtractionResult(state.Keywords),
+			state.Decisions,
+			state.Error
+		));
+	}
+
+	private async Task ProcessSearchAsync(string searchId, string caseText, List<string> keywords, string userId, string token)
+	{
+		try
+		{
+			var results = await _searchProvider.SearchAsync(keywords);
+
+			// Relevance scoring (tüm sonuçlar için veya sınırlı)
+			var maxScoreCount = int.TryParse(Environment.GetEnvironmentVariable("SEARCH_RELEVANCE_MAX"), out var tmp) ? Math.Clamp(tmp, 1, 50) : 15;
+			var toScore = results.Take(maxScoreCount).ToList();
+			var scores = new ConcurrentDictionary<long, (int score, string explanation, string similarity)>();
+			try
+			{
+				var aiClientForRelevance = _factory.CreateClient("AIService");
+				if (!string.IsNullOrEmpty(token)) aiClientForRelevance.DefaultRequestHeaders.Add("Authorization", token);
+				var semaphore = new SemaphoreSlim(4);
+				var tasks = toScore.Select(async d =>
+				{
+					await semaphore.WaitAsync();
+					try
+					{
+						using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+						var body = new { CaseText = caseText, DecisionText = TrimForAi(d.KararMetni, 6000) };
+						var resp = await aiClientForRelevance.PostAsJsonAsync("api/gemini/analyze-relevance", body, cts.Token);
+						if (!resp.IsSuccessStatusCode) return;
+						var relevance = await resp.Content.ReadFromJsonAsync<RelevanceTemp>(cancellationToken: cts.Token);
+						if (relevance != null)
+						{
+							scores[d.Id] = (relevance.Score, relevance.Explanation, relevance.Similarity);
+						}
+					}
+					catch { }
+					finally { semaphore.Release(); }
+				});
+				await Task.WhenAll(tasks);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Relevance skorlaması başarısız (async)");
+			}
+
+			var top = results
+				.Select(r => new
+				{
+					r,
+					sc = scores.TryGetValue(r.Id, out var scVal) ? scVal.score : (int?)null,
+					ex = scores.TryGetValue(r.Id, out var scVal2) ? scVal2.explanation : null,
+					sim = scores.TryGetValue(r.Id, out var scVal3) ? scVal3.similarity : null
+				})
+				.OrderByDescending(x => x.sc ?? int.MinValue)
+				.ThenByDescending(x => x.r.KararTarihi)
+				.Take(3)
+				.Select(x => new ScoredDecisionDto(
+					x.r.Id,
+					x.r.YargitayDairesi,
+					x.r.EsasNo,
+					x.r.KararNo,
+					x.r.KararTarihi,
+					x.r.KararMetni,
+					x.sc,
+					x.ex,
+					x.sim
+				))
+				.ToList();
+
+			// Kullanım tüket
+			try
+			{
+				var subClient = _factory.CreateClient("Subscription");
+				if (!string.IsNullOrEmpty(token)) subClient.DefaultRequestHeaders.Add("Authorization", token);
+				await subClient.PostAsJsonAsync("api/subscription/consume", new { FeatureType = "Search" });
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Subscription consume başarısız (async)");
+			}
+
+			// Geçmiş kaydı
+			try
+			{
+				var history = new SearchHistory
+				{
+					UserId = userId,
+					Keywords = string.Join(',', keywords),
+					ResultCount = results.Count,
+					CreatedAt = DateTime.UtcNow
+				};
+				_db.SearchHistories.Add(history);
+				await _db.SaveChangesAsync();
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Arama geçmişi kaydedilemedi (async)");
+			}
+
+			_store.Complete(searchId, top);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Async arama süreci hata");
+			_store.Complete(searchId, new List<ScoredDecisionDto>(), "Arama sırasında hata");
+		}
 	}
 
 	private async Task<T> RunWithTimeout<T>(Func<CancellationToken, Task<T>> action, TimeSpan timeout, CancellationToken outerToken)
