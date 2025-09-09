@@ -174,6 +174,97 @@ public class SearchController : ControllerBase
 		});
 	}
 
+	// Frontend AI (analysis + keywords) yaptıktan sonra yalnızca karar araması
+	[HttpPost("execute")]
+	[ProducesResponseType(typeof(ExecuteSearchResponse), 200)]
+	public async Task<IActionResult> Execute([FromBody] ExecuteSearchRequest request, CancellationToken cancellationToken)
+	{
+		if (request.Keywords == null || request.Keywords.Count == 0 || request.Keywords.All(string.IsNullOrWhiteSpace))
+			return BadRequest("Anahtar kelime gerekli.");
+		var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+		if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+		var sub = _factory.CreateClient("Subscription");
+		var token = Request.Headers["Authorization"].ToString();
+		if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
+		var usage = await sub.GetFromJsonAsync<UsageStatsDto>("api/subscription/usage", cancellationToken);
+		if (usage == null) return StatusCode(502, "Subscription service unreachable");
+		if (usage.SearchRemaining == 0) return Forbid("Limit tükendi");
+
+		var keywords = request.Keywords.Where(k => !string.IsNullOrWhiteSpace(k)).Select(k => k.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+		if (keywords.Count == 0) return BadRequest("Geçerli anahtar kelime yok.");
+
+		var results = await _searchProvider.SearchAsync(keywords, cancellationToken);
+
+		// Relevance skorlaması (isteğe bağlı)
+		var maxScoreCount = int.TryParse(Environment.GetEnvironmentVariable("SEARCH_RELEVANCE_MAX"), out var tmp) ? Math.Clamp(tmp, 1, 50) : 15;
+		var toScore = results.Take(maxScoreCount).ToList();
+		var scores = new Dictionary<long, (int score, string explanation, string similarity)>();
+		try
+		{
+			var aiClientForRelevance = _factory.CreateClient("AIService");
+			if (!string.IsNullOrEmpty(token)) aiClientForRelevance.DefaultRequestHeaders.Add("Authorization", token);
+			var semaphore = new SemaphoreSlim(4);
+			var tasks = toScore.Select(async d =>
+			{
+				await semaphore.WaitAsync(cancellationToken);
+				try
+				{
+					using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+					cts.CancelAfter(TimeSpan.FromSeconds(10));
+					var body = new { CaseText = request.CaseText, DecisionText = TrimForAi(d.KararMetni, 6000) };
+					var resp = await aiClientForRelevance.PostAsJsonAsync("api/gemini/analyze-relevance", body, cts.Token);
+					if (!resp.IsSuccessStatusCode) return;
+					var relevance = await resp.Content.ReadFromJsonAsync<RelevanceTemp>(cancellationToken: cts.Token);
+					if (relevance != null)
+					{
+						lock (scores) { scores[d.Id] = (relevance.Score, relevance.Explanation, relevance.Similarity); }
+					}
+				}
+				catch { }
+				finally { semaphore.Release(); }
+			});
+			await Task.WhenAll(tasks);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "Relevance skorlaması (execute) başarısız");
+		}
+
+		await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = "Search" });
+
+		try
+		{
+			var history = new SearchHistory
+			{
+				UserId = userId,
+				Keywords = string.Join(',', keywords),
+				ResultCount = results.Count,
+				CreatedAt = DateTime.UtcNow
+			};
+			_db.SearchHistories.Add(history);
+			await _db.SaveChangesAsync(cancellationToken);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "Arama geçmişi kaydedilemedi (execute)");
+		}
+
+		var scored = results.Select(r => new ScoredDecisionDto(
+			r.Id,
+			r.YargitayDairesi,
+			r.EsasNo,
+			r.KararNo,
+			r.KararTarihi,
+			r.KararMetni,
+			scores.TryGetValue(r.Id, out var sc) ? sc.score : (int?)null,
+			scores.TryGetValue(r.Id, out var sc2) ? sc2.explanation : null,
+			scores.TryGetValue(r.Id, out var sc3) ? sc3.similarity : null
+		)).ToList();
+
+		return Ok(new ExecuteSearchResponse(scored, results.Count));
+	}
+
 	// Yeni asenkron iki aşamalı akış
 	// 1) /api/search/init : Analiz + Keyword extraction, arka planda karar araması & skorlamayı tetikler
 	[HttpPost("init")]
