@@ -56,9 +56,10 @@ export function useSearchFlow() {
 
       // 3) Karar araması (artık anahtar kelimeler elde edildi; backend şu an sadece CaseText kullanıyor)
       setIsSearchingDecisions(true);
+      const currentKeywords = result?.keywords?.keywords || [];
       const backendResponse = await searchService.searchCases({
         caseText: request.caseText,
-        keywords: (initialResult.keywords?.keywords || []).length > 0 ? initialResult.keywords?.keywords : undefined,
+        keywords: currentKeywords.length > 0 ? currentKeywords : undefined,
         skipAnalysis: true // Frontend analiz & keywords çıkardı; backend tekrar yapmasın
       });
       const tSearch = performance.now();
