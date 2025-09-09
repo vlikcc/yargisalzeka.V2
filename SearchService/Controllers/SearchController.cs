@@ -35,13 +35,7 @@ public class SearchController : ControllerBase
 	[ProducesResponseType(typeof(SearchResponse), 200)]
 	public async Task<IActionResult> Search([FromBody] SearchRequest request, CancellationToken cancellationToken)
 	{
-		// Artık arama yalnızca açıkça gönderilen (veya AI ile elde edilen) anahtar kelimelerle yapılır.
-		if (request.Keywords == null || request.Keywords.All(k => string.IsNullOrWhiteSpace(k)))
-		{
-			// Eğer frontend AI'dan üretmek istiyorsa skipAnalysis=false göndermeli; aksi halde hata.
-			if (request.SkipAnalysis)
-				return BadRequest("En az bir anahtar kelime gerekli (skipAnalysis=true iken).");
-		}
+		if (string.IsNullOrWhiteSpace(request.CaseText)) return BadRequest("Olay metni gerekli.");
 
 		var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
 		if (string.IsNullOrEmpty(userId)) return Unauthorized();
@@ -53,47 +47,44 @@ public class SearchController : ControllerBase
 		if (usage == null) return StatusCode(502, "Subscription service unreachable");
 		if (usage.SearchRemaining == 0) return Forbid("Limit tükendi");
 
-		List<string> keywords = request.Keywords?.Where(k => !string.IsNullOrWhiteSpace(k)).Select(k => k.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? new();
-		string caseAnalysis = string.Empty;
+		var aiClient = _factory.CreateClient("AIService");
+		if (!string.IsNullOrEmpty(token)) aiClient.DefaultRequestHeaders.Add("Authorization", token);
 
-		var aiNeeded = !request.SkipAnalysis || keywords.Count == 0; // Eğer frontend her şeyi yaptıysa AI çağrılarını atla
-		if (aiNeeded)
+		var keywordTask = RunWithTimeout(async ct =>
 		{
-			var aiClient = _factory.CreateClient("AIService");
-			if (!string.IsNullOrEmpty(token)) aiClient.DefaultRequestHeaders.Add("Authorization", token);
-
-			// İki isteği paralel (gerektiği ölçüde) ve per-call timeout ile çalıştır
-			var keywordTask = keywords.Count == 0 ? RunWithTimeout(async ct =>
+			var resp = await aiClient.PostAsJsonAsync("api/gemini/extract-keywords", new KeywordExtractionRequest(request.CaseText), ct);
+			if (!resp.IsSuccessStatusCode)
 			{
-				var keywordRequest = new KeywordExtractionRequest(request.CaseText);
-				var resp = await aiClient.PostAsJsonAsync("api/gemini/extract-keywords", keywordRequest, ct);
-				if (!resp.IsSuccessStatusCode)
-				{
-					_logger.LogWarning("Keyword extraction degraded (status {Status})", resp.StatusCode);
-					return new List<string>();
-				}
-				return await resp.Content.ReadFromJsonAsync<List<string>>(cancellationToken: ct) ?? new List<string>();
-			}, TimeSpan.FromSeconds(12), cancellationToken) : Task.FromResult(keywords);
+				_logger.LogWarning("Keyword extraction degraded (status {Status})", resp.StatusCode);
+				return new List<string>();
+			}
+			return await resp.Content.ReadFromJsonAsync<List<string>>(cancellationToken: ct) ?? new List<string>();
+		}, TimeSpan.FromSeconds(12), cancellationToken);
 
-			var analysisTask = !request.SkipAnalysis ? RunWithTimeout(async ct =>
+		var analysisTask = RunWithTimeout(async ct =>
+		{
+			var resp = await aiClient.PostAsJsonAsync("api/gemini/analyze-case", new { CaseText = request.CaseText }, ct);
+			if (!resp.IsSuccessStatusCode)
 			{
-				var analysisRequest = new { CaseText = request.CaseText };
-				var resp = await aiClient.PostAsJsonAsync("api/gemini/analyze-case", analysisRequest, ct);
-				if (!resp.IsSuccessStatusCode)
-				{
-					_logger.LogWarning("Case analysis degraded (status {Status})", resp.StatusCode);
-					return "Analiz şu anda gerçekleştirilemedi";
-				}
-				var dto = await resp.Content.ReadFromJsonAsync<CaseAnalysisResponse>(cancellationToken: ct);
-				return dto?.AnalysisResult ?? string.Empty;
-			}, TimeSpan.FromSeconds(14), cancellationToken) : Task.FromResult(string.Empty);
+				_logger.LogWarning("Case analysis degraded (status {Status})", resp.StatusCode);
+				return "Analiz şu anda gerçekleştirilemedi";
+			}
+			var dto = await resp.Content.ReadFromJsonAsync<CaseAnalysisResponse>(cancellationToken: ct);
+			return dto?.AnalysisResult ?? string.Empty;
+		}, TimeSpan.FromSeconds(14), cancellationToken);
 
-			await Task.WhenAll(keywordTask, analysisTask);
-			if (keywords.Count == 0) keywords = (await keywordTask) ?? new List<string>();
-			if (string.IsNullOrEmpty(caseAnalysis)) caseAnalysis = await analysisTask;
+		await Task.WhenAll(keywordTask, analysisTask);
+		var keywords = (await keywordTask) ?? new List<string>();
+		if (keywords.Count == 0)
+		{
+			keywords = request.CaseText
+				.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+				.Where(w => w.Length > 3)
+				.Take(5)
+				.ToList();
 		}
+		var caseAnalysis = await analysisTask ?? string.Empty;
 
-		// Fallback kelime üretimi kaldırıldı: keywords boşsa ve AI üretmemişse, boş arama yapılır (sonuç 0) veya üstte 400 dönüldü.
 		if (keywords.Count == 0)
 		{
 			return Ok(new
@@ -104,6 +95,7 @@ public class SearchController : ControllerBase
 				totalResults = 0
 			});
 		}
+
 		var results = await _searchProvider.SearchAsync(keywords, cancellationToken);
 
 		// Relevance skorlaması: AIService AnalyzeRelevance çağrısı (performans için sınırlı sayıda)

@@ -4,9 +4,8 @@ namespace SearchService.Models;
 // CaseText zorunlu, Keywords opsiyonel. Frontend AI analiz & keyword extraction yaptıysa SkipAnalysis=true + Keywords gönderir.
 public class SearchRequest
 {
+	// Kullanıcı yalnızca olay metni gönderir; backend AI ile analiz & anahtar kelime çıkarır.
 	public string CaseText { get; set; } = string.Empty;
-	public List<string>? Keywords { get; set; } // Frontend'ten gelen temiz anahtar kelimeler
-	public bool SkipAnalysis { get; set; } = false; // true ise backend yeniden AI analiz yapmaz
 }
 
 public record DecisionDto(
