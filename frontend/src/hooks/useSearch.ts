@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { searchService, SearchRequest, SearchResponse, SearchHistoryItem } from '../services/searchService';
+import { searchService, SearchResponse, SearchHistoryItem } from '../services/searchService';
+import { aiService } from '../services/aiService';
 import { useSubscription } from '../contexts/SubscriptionContext';
 
 export function useSearchFlow() {
@@ -17,39 +18,52 @@ export function useSearchFlow() {
     setHistory(h);
   }, []);
 
-  const runSearch = useCallback(async (request: SearchRequest) => {
+  const runSearch = useCallback(async (request: { caseText: string }) => {
     if (isSearching) return;
     setIsSearching(true);
     setError(null);
     try {
-      setIsAnalyzing(true); // Arka planda tek backend çağrısı yapsak da kullanıcıya durum bilgisi verelim
-      setIsSearchingDecisions(true);
-      const backendResponse = await searchService.searchCases({ caseText: request.caseText });
+      // A) Analiz
+      setIsAnalyzing(true);
+      const analysisResp = await aiService.analyzeCase({ caseText: request.caseText }).catch(() => ({ summary: 'Analiz hatası' } as any));
       setIsAnalyzing(false);
-      setIsExtractingKeywords(false);
+
+      // B) Anahtar kelimeler (paralel gidebilirdi ama sıralı tutuyoruz)
+      setIsExtractingKeywords(true);
+      let extracted: string[] = [];
+      try {
+        const kw = await aiService.extractKeywords({ caseText: request.caseText }).catch(() => ({ keywords: [] }));
+        extracted = (kw as any)?.keywords || [];
+      } finally {
+        setIsExtractingKeywords(false);
+      }
+
+      // Kullanıcıya analiz ve keywords hemen yansıt
+      setResult({
+        analysis: { AnalysisResult: (analysisResp as any).summary || (analysisResp as any).analysisResult || '' } as any,
+        keywords: { keywords: extracted },
+        searchId: Date.now().toString(),
+        scoredDecisions: []
+      });
+
+      // C) Karar araması
+      setIsSearchingDecisions(true);
+      const exec = await searchService.execute({ caseText: request.caseText, keywords: extracted });
       setIsSearchingDecisions(false);
-      const decisionArray = Array.isArray((backendResponse as any).decisions) ? (backendResponse as any).decisions : [];
-      const mapped = decisionArray.map((d: any) => {
+
+      const mapped = exec.decisions.map((d: any) => {
         const metin: string = d?.kararMetni || '';
-        const score = typeof d?.score === 'number' ? d.score : null;
         return {
           id: (d?.id ?? '').toString(),
           title: `${d?.yargitayDairesi ?? ''} - ${d?.esasNo ?? ''}/${d?.kararNo ?? ''}`.trim(),
-          score: score ?? 0,
+          score: typeof d?.score === 'number' ? d.score : 0,
           court: d?.yargitayDairesi,
           summary: metin.length > 200 ? metin.substring(0, 200) + '...' : metin,
           explanation: d?.relevanceExplanation,
           similarity: d?.relevanceSimilarity
         } as any;
       });
-      const backendAnalysisText = (backendResponse as any).analysis?.analysisResult || (backendResponse as any).analysis?.AnalysisResult || '';
-      const backendKeywords = (backendResponse as any).keywords?.keywords || [];
-      setResult({
-        analysis: { AnalysisResult: backendAnalysisText } as any,
-        keywords: { keywords: backendKeywords },
-        searchId: Date.now().toString(),
-        scoredDecisions: mapped
-      });
+      setResult(r => r ? { ...r, scoredDecisions: mapped } : r);
 
       refreshSubscription();
       loadHistory();
