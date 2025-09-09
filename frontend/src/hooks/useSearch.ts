@@ -32,8 +32,31 @@ export function useSearchFlow() {
       setIsExtractingKeywords(true);
       let extracted: string[] = [];
       try {
-        const kw = await aiService.extractKeywords({ caseText: request.caseText }).catch(() => ({ keywords: [] }));
-        extracted = (kw as any)?.keywords || [];
+        const kw = await aiService.extractKeywords({ caseText: request.caseText }).catch(() => [] as any);
+        // API şu anda düz bir string[] döndürüyor; biz önceden { keywords: string[] } varsayıyorduk.
+        if (Array.isArray(kw)) {
+          extracted = kw.filter(k => typeof k === 'string').map(k => k.trim()).filter(k => k.length > 0);
+        } else if (kw && typeof kw === 'object') {
+          const maybe = (kw as any).keywords;
+            if (Array.isArray(maybe)) {
+              extracted = maybe.filter((k: any) => typeof k === 'string').map((k: string) => k.trim()).filter(k => k.length > 0);
+            }
+        }
+        // Tekrarlari temizle & lowercase normalizasyon (case-insensitive uniqueness)
+        const seen = new Set<string>();
+        extracted = extracted.filter(k => {
+          const key = k.toLocaleLowerCase('tr-TR');
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        // Eğer hala boşsa basit fallback üret
+        if (extracted.length === 0) {
+          extracted = request.caseText
+            .split(/[^A-Za-zÇĞİÖŞÜçğışöü0-9]+/u)
+            .filter(w => w.length > 3)
+            .slice(0, 6);
+        }
       } finally {
         setIsExtractingKeywords(false);
       }
