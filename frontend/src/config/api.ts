@@ -53,6 +53,7 @@ export const ENDPOINTS = {
   },
   SEARCH: {
     SEARCH: '/search',
+    KEYWORD_SEARCH: '/keywordsearch', // Yeni keyword-only endpoint
     HISTORY: '/search/history',
     SAVE_DECISION: '/search/save/{decisionId}'
   },
