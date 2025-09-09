@@ -54,19 +54,14 @@ export function useSearchFlow() {
         setIsExtractingKeywords(false);
       }
 
-      // 3) Karar araması - Sadece anahtar kelimelerle
+      // 3) Karar araması (artık anahtar kelimeler elde edildi; backend şu an sadece CaseText kullanıyor)
       setIsSearchingDecisions(true);
       const currentKeywords = result?.keywords?.keywords || [];
-      
-      if (currentKeywords.length === 0) {
-        // Anahtar kelime yoksa arama yapma
-        setIsSearchingDecisions(false);
-        setError('Anahtar kelime çıkarılamadı');
-        return;
-      }
-      
-      // Yeni keyword-only endpoint kullan
-      const backendResponse = await searchService.searchByKeywords(currentKeywords);
+      const backendResponse = await searchService.searchCases({
+        caseText: request.caseText,
+        keywords: currentKeywords.length > 0 ? currentKeywords : undefined,
+        skipAnalysis: true // Frontend analiz & keywords çıkardı; backend tekrar yapmasın
+      });
       const tSearch = performance.now();
       const decisionArray = Array.isArray((backendResponse as any).decisions) ? (backendResponse as any).decisions : [];
       initialResult.scoredDecisions = decisionArray.map((d: any) => {
