@@ -65,6 +65,11 @@ public class CaseAnalysisResponse
      public string AnalysisResult { get; set; } = string.Empty;
 }
 
+public class KeywordExtractionResponse
+{
+    public List<string> Keywords { get; set; } = new();
+}
+
 public class TestTokenRequest
 {
     [Required]

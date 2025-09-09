@@ -58,7 +58,23 @@ public class SearchController : ControllerBase
 				_logger.LogWarning("Keyword extraction degraded (status {Status})", resp.StatusCode);
 				return new List<string>();
 			}
-			return await resp.Content.ReadFromJsonAsync<List<string>>(cancellationToken: ct) ?? new List<string>();
+			// Yeni format { keywords: [...] }, eski düz array desteği
+			try
+			{
+				var json = await resp.Content.ReadAsStringAsync(ct);
+				if (string.IsNullOrWhiteSpace(json)) return new List<string>();
+				if (json.TrimStart().StartsWith("["))
+				{
+					return System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+				}
+				var wrapper = System.Text.Json.JsonSerializer.Deserialize<KeywordWrapper>(json);
+				return wrapper?.Keywords ?? new List<string>();
+			}
+			catch (Exception exKw)
+			{
+				_logger.LogWarning(exKw, "Keyword parse hata - boş liste dönülüyor");
+				return new List<string>();
+			}
 		}, TimeSpan.FromSeconds(12), cancellationToken);
 
 		var analysisTask = RunWithTimeout(async ct =>
@@ -291,7 +307,18 @@ public class SearchController : ControllerBase
 		{
 			var resp = await aiClient.PostAsJsonAsync("api/gemini/extract-keywords", new KeywordExtractionRequest(request.CaseText), ct);
 			if (!resp.IsSuccessStatusCode) return new List<string>();
-			return await resp.Content.ReadFromJsonAsync<List<string>>(cancellationToken: ct) ?? new List<string>();
+			try
+			{
+				var json = await resp.Content.ReadAsStringAsync(ct);
+				if (string.IsNullOrWhiteSpace(json)) return new List<string>();
+				if (json.TrimStart().StartsWith("["))
+				{
+					return System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+				}
+				var wrapper = System.Text.Json.JsonSerializer.Deserialize<KeywordWrapper>(json);
+				return wrapper?.Keywords ?? new List<string>();
+			}
+			catch { return new List<string>(); }
 		}, TimeSpan.FromSeconds(12), cancellationToken);
 
 		var analysisTask = RunWithTimeout(async ct =>
@@ -475,6 +502,8 @@ public class SearchController : ControllerBase
 		public string Explanation { get; set; } = string.Empty;
 		public string Similarity { get; set; } = string.Empty;
 	}
+
+	private class KeywordWrapper { public List<string> Keywords { get; set; } = new(); }
 
 	// GET api/search/history?take=20
 	[HttpGet("history")]

@@ -29,19 +29,19 @@ public class GeminiController : ControllerBase
     }
 
     [HttpPost("extract-keywords")]
-    [ProducesResponseType(typeof(List<string>), 200)]
+    [ProducesResponseType(typeof(KeywordExtractionResponse), 200)]
     public async Task<IActionResult> ExtractKeywords([FromBody] KeywordRequest request)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
-    var sub = _factory.CreateClient("Subscription");
-    var token = Request.Headers["Authorization"].ToString();
-    if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
-    var access = await sub.GetFromJsonAsync<ValidateAccessDto>($"api/subscription/usage");
-    if (access == null) return StatusCode(502, "Subscription service unreachable");
-    if (access.KeywordExtractionRemaining == 0) return Forbid("Limit tükendi");
-        var result = await _service.ExtractKeywordsFromCaseAsync(request.CaseText);
-        if (result.Count > 0)
+        var sub = _factory.CreateClient("Subscription");
+        var token = Request.Headers["Authorization"].ToString();
+        if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
+        var access = await sub.GetFromJsonAsync<ValidateAccessDto>($"api/subscription/usage");
+        if (access == null) return StatusCode(502, "Subscription service unreachable");
+        if (access.KeywordExtractionRemaining == 0) return Forbid("Limit tükendi");
+        var keywords = await _service.ExtractKeywordsFromCaseAsync(request.CaseText);
+        if (keywords.Count > 0)
         {
             await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.KeywordExtraction });
         }
@@ -49,7 +49,8 @@ public class GeminiController : ControllerBase
         {
             _logger.LogInformation("Keyword extraction fallback/empty result - quota not consumed (user {UserId})", userId);
         }
-        return Ok(result);
+        // Tutarlı JSON shape
+        return Ok(new KeywordExtractionResponse { Keywords = keywords });
     }
 
     [HttpPost("analyze-relevance")]
