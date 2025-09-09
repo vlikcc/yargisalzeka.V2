@@ -35,9 +35,12 @@ public class SearchController : ControllerBase
 	[ProducesResponseType(typeof(SearchResponse), 200)]
 	public async Task<IActionResult> Search([FromBody] SearchRequest request, CancellationToken cancellationToken)
 	{
-		if (string.IsNullOrWhiteSpace(request.CaseText) && (request.Keywords == null || request.Keywords.Count == 0))
+		// Artık arama yalnızca açıkça gönderilen (veya AI ile elde edilen) anahtar kelimelerle yapılır.
+		if (request.Keywords == null || request.Keywords.All(k => string.IsNullOrWhiteSpace(k)))
 		{
-			return BadRequest("Olay metni veya en az bir anahtar kelime gerekli.");
+			// Eğer frontend AI'dan üretmek istiyorsa skipAnalysis=false göndermeli; aksi halde hata.
+			if (request.SkipAnalysis)
+				return BadRequest("En az bir anahtar kelime gerekli (skipAnalysis=true iken).");
 		}
 
 		var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
@@ -90,14 +93,16 @@ public class SearchController : ControllerBase
 			if (string.IsNullOrEmpty(caseAnalysis)) caseAnalysis = await analysisTask;
 		}
 
-		// Arama (keywords boşsa sınırlı fallback: metindeki ilk 5 kelimeyi al)
-		if (keywords.Count == 0 && !string.IsNullOrWhiteSpace(request.CaseText))
+		// Fallback kelime üretimi kaldırıldı: keywords boşsa ve AI üretmemişse, boş arama yapılır (sonuç 0) veya üstte 400 dönüldü.
+		if (keywords.Count == 0)
 		{
-			keywords = request.CaseText
-				.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-				.Where(w => w.Length > 3)
-				.Take(5)
-				.ToList();
+			return Ok(new
+			{
+				decisions = new List<object>(),
+				analysis = new { analysisResult = caseAnalysis },
+				keywords = new { keywords = keywords },
+				totalResults = 0
+			});
 		}
 		var results = await _searchProvider.SearchAsync(keywords, cancellationToken);
 
