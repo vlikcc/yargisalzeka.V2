@@ -55,11 +55,14 @@ export interface BackendSearchResponse {
   totalResults: number;
 }
 
+export interface ExecuteSearchRequest { caseText: string; keywords: string[]; }
+export interface ExecuteSearchResponse { decisions: DecisionDto[]; totalResults: number; }
+
 export const searchService = {
-  // Backend artık yalnızca CaseText alıyor; Keywords & SkipAnalysis gönderilmez.
-  searchCases: (payload: { caseText: string }) =>
-    httpClient.post<BackendSearchResponse>(ENDPOINTS.SEARCH.SEARCH, {
-      CaseText: payload.caseText
+  execute: (payload: ExecuteSearchRequest) =>
+    httpClient.post<ExecuteSearchResponse>(ENDPOINTS.SEARCH.SEARCH + '/execute', {
+      caseText: payload.caseText,
+      keywords: payload.keywords
     }),
   getHistory: () => httpClient.get<SearchHistoryItem[]>(ENDPOINTS.SEARCH.HISTORY),
   saveDecision: (payload: SaveDecisionRequest) => httpClient.post(ENDPOINTS.SEARCH.SAVE_DECISION, payload)

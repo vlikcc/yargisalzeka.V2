@@ -115,7 +115,8 @@ export default function SearchPage() {
             </div>
             <div className="flex-1">
               <p className="font-semibold text-neutral-900">
-                {isAnalyzing && "Analiz & Anahtar Kelimeler Çıkarılıyor"}
+                {isAnalyzing && "Olay Analizi Yapılıyor"}
+                {!isAnalyzing && isExtractingKeywords && "Anahtar Kelimeler Çıkarılıyor"}
                 {isSearchingDecisions && "Kararlar ve Skorlar Hazırlanıyor"}
                 {isSearching && !isAnalyzing && !isSearchingDecisions && !isExtractingKeywords && "İşlem Başlatıldı"}
               </p>
