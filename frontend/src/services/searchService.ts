@@ -56,18 +56,12 @@ export interface BackendSearchResponse {
 }
 
 export const searchService = {
-  // Eski endpoint (hala kullanılabilir)
   searchCases: (payload: { caseText: string; keywords?: string[]; skipAnalysis?: boolean }) =>
     httpClient.post<BackendSearchResponse>(ENDPOINTS.SEARCH.SEARCH, {
       // Backend'in beklediği format (büyük harfle başlar)
       CaseText: payload.caseText,
       Keywords: payload.keywords || [],
       SkipAnalysis: payload.skipAnalysis || false
-    }),
-  // Yeni keyword-only endpoint
-  searchByKeywords: (keywords: string[]) =>
-    httpClient.post<BackendSearchResponse>(ENDPOINTS.SEARCH.KEYWORD_SEARCH, {
-      Keywords: keywords
     }),
   getHistory: () => httpClient.get<SearchHistoryItem[]>(ENDPOINTS.SEARCH.HISTORY),
   saveDecision: (payload: SaveDecisionRequest) => httpClient.post(ENDPOINTS.SEARCH.SAVE_DECISION, payload)
