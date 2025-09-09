@@ -62,4 +62,16 @@ public record SearchResultResponse(
 	string? Error
 );
 
+// Kullanıcı tarafında AI analiz & keyword extraction yapıldıktan sonra sadece karar araması için
+public class ExecuteSearchRequest
+{
+	public string CaseText { get; set; } = string.Empty; // Relevance skorlaması için gerekli
+	public List<string> Keywords { get; set; } = new();
+}
+
+public record ExecuteSearchResponse(
+	List<ScoredDecisionDto> Decisions,
+	int TotalResults
+);
+
 
