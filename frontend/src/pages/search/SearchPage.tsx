@@ -87,7 +87,7 @@ export default function SearchPage() {
         </div>
         <div className="flex items-center justify-end">
           <Button 
-            disabled={loading || isSearching || !text.trim() || isOverLimit} 
+            disabled={isSearching || !text.trim() || isOverLimit} 
             className="btn-primary px-6 py-2.5 font-semibold shadow-glow"
           >
             {(loading || isSearching) ? (
@@ -105,7 +105,7 @@ export default function SearchPage() {
         </div>
       </form>
       {/* Loading States */}
-      {(loading || isSearching || isAnalyzing || isSearchingDecisions || isExtractingKeywords) && (
+  {(isSearching || isAnalyzing || isSearchingDecisions || isExtractingKeywords) && (
         <div className="glass-card animate-slide-up">
           <div className="flex items-center space-x-4">
             <div className="relative">
@@ -115,18 +115,17 @@ export default function SearchPage() {
             </div>
             <div className="flex-1">
               <p className="font-semibold text-neutral-900">
-                {isAnalyzing && "Olay Analiz Ediliyor"}
-                {isSearchingDecisions && "Benzer Kararlar Aranıyor"}
-                {isExtractingKeywords && "Anahtar Kelimeler Çıkarılıyor"}
-                {(loading || isSearching) && !isAnalyzing && !isSearchingDecisions && !isExtractingKeywords && "İşlem Başlatıldı"}
+                {isAnalyzing && "Analiz & Anahtar Kelimeler Çıkarılıyor"}
+                {isSearchingDecisions && "Kararlar ve Skorlar Hazırlanıyor"}
+                {isSearching && !isAnalyzing && !isSearchingDecisions && !isExtractingKeywords && "İşlem Başlatıldı"}
               </p>
               <p className="text-sm text-neutral-500">Lütfen bekleyin, bu birkaç saniye sürebilir...</p>
             </div>
           </div>
         </div>
       )}
-      {(error || flowError) && (
-        <ErrorState description={error || flowError || 'Hata'} onRetry={() => { void runSearch({ caseText: text }); }} />
+      {(flowError) && (
+        <ErrorState description={flowError || 'Hata'} onRetry={() => { void runSearch({ caseText: text }); }} />
       )}
       {/* Results */}
       <div className="space-y-4">
@@ -196,7 +195,7 @@ export default function SearchPage() {
           </div>
         ))}
         {/* Empty States */}
-        {!loading && !isSearching && result && result.scoredDecisions && result.scoredDecisions.length === 0 && (
+  {!isSearching && result && result.scoredDecisions && result.scoredDecisions.length === 0 && (
           <div className="glass-card text-center py-8">
             <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <FileText className="w-8 h-8 text-amber-600" />
@@ -210,7 +209,7 @@ export default function SearchPage() {
           </div>
         )}
         
-        {!loading && !isSearching && !result && results.length === 0 && (
+  {!isSearching && !result && results.length === 0 && (
           <div className="glass-card text-center py-12">
             <div className="w-20 h-20 bg-neutral-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
               <Search className="w-10 h-10 text-neutral-400" />
