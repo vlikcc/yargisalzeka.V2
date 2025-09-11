@@ -30,6 +30,7 @@ export interface CompositeSearchResponse {
 export const aiService = {
   extractKeywords: (payload: KeywordExtractionRequest) => httpClient.post<KeywordExtractionResponse>(ENDPOINTS.AI.EXTRACT_KEYWORDS, payload),
   analyzeCase: (payload: CaseAnalysisRequest) => httpClient.post<CaseAnalysisResponse>(ENDPOINTS.AI.ANALYZE_CASE, payload),
-  compositeSearch: (payload: CompositeSearchRequest) => httpClient.post<CompositeSearchResponse>('/gemini/composite-search', payload)
+  // compositeSearch için timeout tamamen kaldırıldı (timeout:0 -> sınırsız)
+  compositeSearch: (payload: CompositeSearchRequest) => httpClient.post<CompositeSearchResponse>('/gemini/composite-search', payload, { timeout: 0 })
   // scoreDecisions removed as it's not available in GeminiController
 };
