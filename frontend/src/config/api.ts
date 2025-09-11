@@ -27,7 +27,8 @@ export const API_CONFIG = {
   // 2) Dev server (vite) -> talk to local ApiGateway
   // 3) Production build -> same-origin "/api" (Nginx proxies to ApiGateway)
   BASE_URL: SAFE_BASE,
-  TIMEOUT: Number(import.meta.env.VITE_HTTP_TIMEOUT || 45000)
+  // Global timeout kaldırıldı: axios 0 -> sınırsız. İstenirse VITE_HTTP_TIMEOUT ile tekrar ayarlanabilir.
+  TIMEOUT: Number(import.meta.env.VITE_HTTP_TIMEOUT || 0)
 };
 
 export const ENDPOINTS = {
