@@ -14,40 +14,33 @@ public class PostgresSearchProvider : ISearchProvider
 
 	public async Task<List<DecisionDto>> SearchAsync(List<string> keywords, CancellationToken cancellationToken = default)
 	{
-		var keywordsLower = keywords
-			.Select(k => k.Trim())
+		var terms = keywords
 			.Where(k => !string.IsNullOrWhiteSpace(k))
-			.Select(k => k.ToLower())
+			.Select(k => k.Trim())
+			.Distinct(StringComparer.OrdinalIgnoreCase)
 			.ToList();
+		if (terms.Count == 0) return new List<DecisionDto>();
 
-		IQueryable<Entities.Decision> query = _dbContext.Decisions
-			.Where(d => d.KararTarihi != null); // NULL tarihleri filtrele
-
-		foreach (var k in keywordsLower)
+		IQueryable<Entities.Decision> combined = _dbContext.Decisions.Where(d => false);
+		foreach (var term in terms)
 		{
-			var pattern = "%" + k + "%";
-			query = query.Where(d =>
+			var pattern = "%" + term.ToLower() + "%";
+			var termQuery = _dbContext.Decisions.Where(d =>
 				EF.Functions.ILike(d.YargitayDairesi, pattern) ||
 				EF.Functions.ILike(d.EsasNo, pattern) ||
 				EF.Functions.ILike(d.KararNo, pattern) ||
 				EF.Functions.ILike(d.KararMetni, pattern)
 			);
+			combined = combined.Concat(termQuery);
 		}
 
-		var results = await query
+		return await combined
+			.GroupBy(d => d.Id)
+			.Select(g => g.First())
 			.OrderByDescending(d => d.KararTarihi)
 			.Take(50)
-			.Select(d => new DecisionDto(
-				d.Id,
-				d.YargitayDairesi,
-				d.EsasNo,
-				d.KararNo,
-				d.KararTarihi,
-				d.KararMetni
-			))
-			.ToListAsync(cancellationToken);
-
-		return results;
+			.Select(d => new DecisionDto(d.Id, d.YargitayDairesi, d.EsasNo, d.KararNo, d.KararTarihi, d.KararMetni))
+            .ToListAsync(cancellationToken);
 	}
 }
 
