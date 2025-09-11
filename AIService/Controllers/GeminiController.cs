@@ -262,6 +262,10 @@ public class GeminiController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.CaseText)) return BadRequest("Olay metni gerekli.");
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
+    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+    var timeBudgetMs = int.TryParse(Environment.GetEnvironmentVariable("COMPOSITE_TIME_BUDGET_MS"), out var b) ? Math.Clamp(b, 5000, 40000) : 30000; // varsayılan 30 sn
+    int RemainingBudget() => (int)Math.Max(0, timeBudgetMs - stopwatch.ElapsedMilliseconds);
+
         var token = Request.Headers["Authorization"].ToString();
         var sub = _factory.CreateClient("Subscription");
         if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
@@ -272,10 +276,30 @@ public class GeminiController : ControllerBase
             return Forbid("Limit tükendi (analysis/keywords/search)");
 
         // 1 & 2: Analiz ve keyword extraction paralel
-        var analysisTask = _service.AnalyzeCaseTextAsync(request.CaseText);
-        var keywordsTask = _service.ExtractKeywordsFromCaseAsync(request.CaseText);
+        async Task<CaseAnalysisResponse?> RunAnalysisWithTimeout()
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(Math.Min(12000, Math.Max(3000, RemainingBudget()/2))));
+                return await _service.AnalyzeCaseTextAsync(request.CaseText);
+            }
+            catch { return new CaseAnalysisResponse { AnalysisResult = "Analiz zaman aşımı" }; }
+        }
+        async Task<List<string>> RunKeywordsWithTimeout()
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(Math.Min(10000, Math.Max(3000, RemainingBudget()/2))));
+                var list = await _service.ExtractKeywordsFromCaseAsync(request.CaseText);
+                return list;
+            }
+            catch { return new List<string>(); }
+        }
+
+        var analysisTask = RunAnalysisWithTimeout();
+        var keywordsTask = RunKeywordsWithTimeout();
         await Task.WhenAll(analysisTask, keywordsTask);
-        var analysis = (await analysisTask).AnalysisResult;
+        var analysis = (await analysisTask)?.AnalysisResult ?? string.Empty;
         var keywords = (await keywordsTask) ?? new List<string>();
         if (keywords.Count == 0)
         {
@@ -284,6 +308,12 @@ public class GeminiController : ControllerBase
                 .Where(w => w.Length > 3)
                 .Take(5)
                 .ToList();
+        }
+
+        if (RemainingBudget() <= 1000)
+        {
+            // Zaman neredeyse bitti, sonraki adımları atla ve boş karar listesi dön.
+            return Ok(new CompositeSearchResponse { Analysis = analysis, Keywords = keywords, Decisions = new List<ScoredDecisionResult>() });
         }
 
         // 3: SearchService çağrısı
@@ -323,15 +353,17 @@ public class GeminiController : ControllerBase
         decisionsRaw ??= new List<SearchServiceDecisionDto>();
 
         // 4: Relevance scoring (top N veya hepsi - biz max 12 alalım)
-        var maxScore = int.TryParse(Environment.GetEnvironmentVariable("COMPOSITE_SCORE_MAX"), out var tmpMax) ? Math.Clamp(tmpMax, 1, 30) : 12;
+        var maxScore = int.TryParse(Environment.GetEnvironmentVariable("COMPOSITE_SCORE_MAX"), out var tmpMax) ? Math.Clamp(tmpMax, 1, 30) : 8; // düşürüldü
         var toScore = decisionsRaw.Take(maxScore).ToList();
         var scored = new List<ScoredDecisionResult>();
-        var semaphore = new SemaphoreSlim(4);
+        var semaphore = new SemaphoreSlim(3);
         var tasks = toScore.Select(async d =>
         {
+            if (RemainingBudget() <= 1500) return; // zaman doluyor
             await semaphore.WaitAsync();
             try
             {
+                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(Math.Min(8000, Math.Max(2000, RemainingBudget()/2))));
                 var rel = await _service.AnalyzeDecisionRelevanceAsync(request.CaseText, d.KararMetni);
                 if (rel != null)
                 {
@@ -364,6 +396,8 @@ public class GeminiController : ControllerBase
             .ThenByDescending(s => s.DecisionDate)
             .Take(3)
             .ToList();
+
+        stopwatch.Stop();
 
         // Quota consumption (analysis + keyword + search + relevance as case analysis) - en azından birer tane düşelim.
         try
