@@ -10,7 +10,8 @@ import { Search, Sparkles, FileText, Hash } from 'lucide-react';
 export default function SearchPage() {
   const [text, setText] = useState('');
   const { results, loading, error } = useSearch();
-  const { runSearch, result, isSearching, isAnalyzing, isSearchingDecisions, isExtractingKeywords, error: flowError, loadHistory } = useSearchFlow();
+  // useSearchFlow artık yalnızca isSearching ve result döndürüyor; eski aşama bayrakları kaldırıldı.
+  const { runSearch, result, isSearching, error: flowError, loadHistory } = useSearchFlow();
   
   // Kelime sayısını hesapla
   const wordCount = text.trim().split(/\s+/).filter(word => word.length > 0).length;
@@ -105,7 +106,7 @@ export default function SearchPage() {
         </div>
       </form>
       {/* Loading States */}
-  {(isSearching || isAnalyzing || isSearchingDecisions || isExtractingKeywords) && (
+  {isSearching && (
         <div className="glass-card animate-slide-up">
           <div className="flex items-center space-x-4">
             <div className="relative">
@@ -114,12 +115,7 @@ export default function SearchPage() {
               </div>
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-neutral-900">
-                {isAnalyzing && "Olay Analizi Yapılıyor"}
-                {!isAnalyzing && isExtractingKeywords && "Anahtar Kelimeler Çıkarılıyor"}
-                {isSearchingDecisions && "Kararlar ve Skorlar Hazırlanıyor"}
-                {isSearching && !isAnalyzing && !isSearchingDecisions && !isExtractingKeywords && "İşlem Başlatıldı"}
-              </p>
+              <p className="font-semibold text-neutral-900">İşlem devam ediyor...</p>
               <p className="text-sm text-neutral-500">Lütfen bekleyin, bu birkaç saniye sürebilir...</p>
             </div>
           </div>
@@ -142,7 +138,7 @@ export default function SearchPage() {
                   <p className="text-sm text-neutral-500">Yapay zeka analizi tamamlandı</p>
                 </div>
               </div>
-              {result.scoredDecisions && result.scoredDecisions.length === 0 && (
+              {result.decisions && result.decisions.length === 0 && (
                 <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
                   Karar bulunamadı
                 </span>
@@ -150,19 +146,17 @@ export default function SearchPage() {
             </div>
             
             <div className="bg-neutral-50/50 rounded-xl p-4 mb-4">
-              <p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-line">
-                {result.analysis.summary || (result as any).analysis.AnalysisResult || 'Özet yok'}
-              </p>
+              <p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-line">{result.analysis || 'Özet yok'}</p>
             </div>
             
-            {result.keywords && result.keywords.keywords.length > 0 && (
+            {result.keywords && result.keywords.length > 0 && (
               <div className="mb-4">
                 <div className="flex items-center space-x-2 mb-3">
                   <Hash className="w-4 h-4 text-primary-600" />
                   <h4 className="text-sm font-semibold text-neutral-900">Anahtar Kelimeler</h4>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {result.keywords.keywords.map(k => (
+                  {result.keywords.map(k => (
                     <span 
                       key={k} 
                       className="px-3 py-1.5 bg-gradient-to-r from-primary-100 to-primary-200 text-primary-800 text-xs font-medium rounded-full hover:shadow-soft transition-all duration-200 cursor-pointer hover:scale-105"
@@ -180,23 +174,21 @@ export default function SearchPage() {
           </div>
         )}
         {/* Search Results */}
-        {results.map(r => (
-          <div key={r.id} className="card hover-lift p-5 animate-slide-up">
+        {result && result.decisions && result.decisions.length > 0 && result.decisions.map(d => (
+          <div key={d.id} className="card hover-lift p-5 animate-slide-up">
             <div className="flex items-start justify-between mb-2">
-              <h4 className="font-semibold text-neutral-900 line-clamp-2">{r.title}</h4>
-              <span className="px-2.5 py-1 bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 text-xs font-semibold rounded-full">
-                Skor: {r.score}
-              </span>
+              <h4 className="font-semibold text-neutral-900 line-clamp-2">{d.title}</h4>
+              {d.score !== undefined && (
+                <span className="px-2.5 py-1 bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 text-xs font-semibold rounded-full">Skor: {d.score}</span>
+              )}
             </div>
-            {r.summary && (
-              <p className="text-sm text-neutral-600 leading-relaxed line-clamp-3">
-                {r.summary}
-              </p>
+            {d.excerpt && (
+              <p className="text-sm text-neutral-600 leading-relaxed line-clamp-3">{d.excerpt}</p>
             )}
           </div>
         ))}
         {/* Empty States */}
-  {!isSearching && result && result.scoredDecisions && result.scoredDecisions.length === 0 && (
+  {!isSearching && result && result.decisions && result.decisions.length === 0 && (
           <div className="glass-card text-center py-8">
             <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <FileText className="w-8 h-8 text-amber-600" />
@@ -210,7 +202,7 @@ export default function SearchPage() {
           </div>
         )}
         
-  {!isSearching && !result && results.length === 0 && (
+  {!isSearching && !result && (
           <div className="glass-card text-center py-12">
             <div className="w-20 h-20 bg-neutral-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
               <Search className="w-10 h-10 text-neutral-400" />
