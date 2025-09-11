@@ -70,6 +70,39 @@ public class KeywordExtractionResponse
     public List<string> Keywords { get; set; } = new();
 }
 
+public class KeywordExtractionSearchResponse
+{
+    public List<string> Keywords { get; set; } = new();
+    public List<DecisionSearchResult> Decisions { get; set; } = new();
+    public int TotalResults { get; set; }
+}
+
+// Birleşik iş akışı için: olay metni -> analiz + keywords + top 3 scored decisions
+public class CompositeSearchRequest
+{
+    [Required]
+    public string CaseText { get; set; } = string.Empty;
+}
+
+public class ScoredDecisionResult
+{
+    public long Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Excerpt { get; set; } = string.Empty;
+    public DateTime? DecisionDate { get; set; }
+    public string Court { get; set; } = string.Empty;
+    public int? Score { get; set; }
+    public string? RelevanceExplanation { get; set; }
+    public string? RelevanceSimilarity { get; set; }
+}
+
+public class CompositeSearchResponse
+{
+    public string Analysis { get; set; } = string.Empty;
+    public List<string> Keywords { get; set; } = new();
+    public List<ScoredDecisionResult> Decisions { get; set; } = new(); // Top 3
+}
+
 public class TestTokenRequest
 {
     [Required]

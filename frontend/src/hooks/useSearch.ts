@@ -1,14 +1,11 @@
 import { useState, useCallback } from 'react';
-import { searchService, SearchResponse, SearchHistoryItem } from '../services/searchService';
-import { aiService } from '../services/aiService';
+import { searchService, SearchHistoryItem } from '../services/searchService';
+import { aiService, CompositeSearchResponse } from '../services/aiService';
 import { useSubscription } from '../contexts/SubscriptionContext';
 
 export function useSearchFlow() {
   const [isSearching, setIsSearching] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isSearchingDecisions, setIsSearchingDecisions] = useState(false);
-  const [isExtractingKeywords, setIsExtractingKeywords] = useState(false);
-  const [result, setResult] = useState<SearchResponse | null>(null);
+  const [result, setResult] = useState<CompositeSearchResponse | null>(null);
   const [history, setHistory] = useState<SearchHistoryItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { refresh: refreshSubscription } = useSubscription();
@@ -23,71 +20,8 @@ export function useSearchFlow() {
     setIsSearching(true);
     setError(null);
     try {
-      // A) Analiz
-      setIsAnalyzing(true);
-      const analysisResp = await aiService.analyzeCase({ caseText: request.caseText }).catch(() => ({ summary: 'Analiz hatası' } as any));
-      setIsAnalyzing(false);
-
-      // B) Anahtar kelimeler (paralel gidebilirdi ama sıralı tutuyoruz)
-      setIsExtractingKeywords(true);
-      let extracted: string[] = [];
-      try {
-        const kw = await aiService.extractKeywords({ caseText: request.caseText }).catch(() => [] as any);
-        // API şu anda düz bir string[] döndürüyor; biz önceden { keywords: string[] } varsayıyorduk.
-        if (Array.isArray(kw)) {
-          extracted = kw.filter(k => typeof k === 'string').map(k => k.trim()).filter(k => k.length > 0);
-        } else if (kw && typeof kw === 'object') {
-          const maybe = (kw as any).keywords;
-            if (Array.isArray(maybe)) {
-              extracted = maybe.filter((k: any) => typeof k === 'string').map((k: string) => k.trim()).filter(k => k.length > 0);
-            }
-        }
-        // Tekrarlari temizle & lowercase normalizasyon (case-insensitive uniqueness)
-        const seen = new Set<string>();
-        extracted = extracted.filter(k => {
-          const key = k.toLocaleLowerCase('tr-TR');
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        // Eğer hala boşsa basit fallback üret
-        if (extracted.length === 0) {
-          extracted = request.caseText
-            .split(/[^A-Za-zÇĞİÖŞÜçğışöü0-9]+/u)
-            .filter(w => w.length > 3)
-            .slice(0, 6);
-        }
-      } finally {
-        setIsExtractingKeywords(false);
-      }
-
-      // Kullanıcıya analiz ve keywords hemen yansıt
-      setResult({
-        analysis: { AnalysisResult: (analysisResp as any).summary || (analysisResp as any).analysisResult || '' } as any,
-        keywords: { keywords: extracted },
-        searchId: Date.now().toString(),
-        scoredDecisions: []
-      });
-
-      // C) Karar araması
-      setIsSearchingDecisions(true);
-      const exec = await searchService.execute({ caseText: request.caseText, keywords: extracted });
-      setIsSearchingDecisions(false);
-
-      const mapped = exec.decisions.map((d: any) => {
-        const metin: string = d?.kararMetni || '';
-        return {
-          id: (d?.id ?? '').toString(),
-          title: `${d?.yargitayDairesi ?? ''} - ${d?.esasNo ?? ''}/${d?.kararNo ?? ''}`.trim(),
-          score: typeof d?.score === 'number' ? d.score : 0,
-          court: d?.yargitayDairesi,
-          summary: metin.length > 200 ? metin.substring(0, 200) + '...' : metin,
-          explanation: d?.relevanceExplanation,
-          similarity: d?.relevanceSimilarity
-        } as any;
-      });
-      setResult(r => r ? { ...r, scoredDecisions: mapped } : r);
-
+      const resp = await aiService.compositeSearch({ caseText: request.caseText });
+      setResult(resp);
       refreshSubscription();
       loadHistory();
     } catch (e) {
@@ -98,5 +32,5 @@ export function useSearchFlow() {
     }
   }, [isSearching, refreshSubscription, loadHistory]);
 
-  return { isSearching, isAnalyzing, isSearchingDecisions, isExtractingKeywords, result, history, error, runSearch, loadHistory };
+  return { isSearching, result, history, error, runSearch, loadHistory };
 }

@@ -1,11 +1,10 @@
 namespace SearchService.Models;
 
-// Genişletilmiş arama isteği: Frontend artık anahtar kelimeleri ve analiz atlama bayrağını gönderebilir.
-// CaseText zorunlu, Keywords opsiyonel. Frontend AI analiz & keyword extraction yaptıysa SkipAnalysis=true + Keywords gönderir.
+
 public class SearchRequest
 {
-	// Kullanıcı yalnızca olay metni gönderir; backend AI ile analiz & anahtar kelime çıkarır.
-	public string CaseText { get; set; } = string.Empty;
+	// Frontend yalnızca keywords gönderir.
+	public List<string> Keywords { get; set; } = new();
 }
 
 public record DecisionDto(
@@ -32,6 +31,9 @@ public record SearchResponse(
 	KeywordExtractionResult Keywords,
 	int TotalResults
 );
+
+// Sade arama dönüş modeli (yalnızca kararlar + toplam)
+public record SimpleSearchResponse(List<DecisionDto> Decisions, int TotalResults);
 
 // Yeni asenkron akış DTO'ları
 public class InitSearchRequest
