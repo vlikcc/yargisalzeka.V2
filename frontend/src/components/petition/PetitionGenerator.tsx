@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { petitionService } from '../../services/petitionService';
 import { Button } from '../ui/button';
 import { useAsyncOperation } from '../../hooks/useAsyncOperation';
-import { SearchResponse } from '../../services/searchService';
+import { CompositeSearchResponse } from '../../services/aiService';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { FileText, AlertCircle } from 'lucide-react';
 
-interface Props { currentSearch?: SearchResponse | null }
+interface Props { currentSearch?: CompositeSearchResponse | null }
 
 export function PetitionGenerator({ currentSearch }: Props) {
   const [additional, setAdditional] = useState('');
@@ -17,12 +17,12 @@ export function PetitionGenerator({ currentSearch }: Props) {
   // 1. Arama sonuçları mevcut olmalı
   // 2. Dilekçe hakkı olmalı (0 değilse)
   // 3. Analiz tamamlanmış olmalı
-  const hasAnalysis = currentSearch?.analysis?.summary || currentSearch?.analysis?.caseType;
+  const hasAnalysis = currentSearch?.analysis && currentSearch.analysis.length > 0;
   const canGenerate = !!currentSearch && hasAnalysis && (remaining?.petition ?? 0) !== 0; // -1 sınırsız
 
   const submit = () => {
     if (!currentSearch) return;
-    void run(() => petitionService.generate({ caseData: currentSearch, additionalRequests: additional })).catch(()=>{});
+  void run(() => petitionService.generate({ caseData: currentSearch, additionalRequests: additional })).catch(()=>{});
   };
 
   return (

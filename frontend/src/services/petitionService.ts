@@ -1,9 +1,10 @@
 import { httpClient } from './httpClient';
 import { ENDPOINTS } from '../config/api';
-import { SearchResponse } from './searchService';
+// SearchResponse eski yapı için kullanılıyordu; composite arama sonucunda artık farklı alanlar var.
+import { CompositeSearchResponse } from './aiService';
 
 // Frontend'in gönderdiği format
-export interface PetitionGenerationPayload { caseData: SearchResponse; additionalRequests?: string; }
+export interface PetitionGenerationPayload { caseData: CompositeSearchResponse; additionalRequests?: string; }
 
 // Backend'in beklediği format
 export interface PetitionGenerationRequest { 
@@ -25,8 +26,8 @@ export const petitionService = {
     // Frontend payload'ı backend formatına dönüştür
     const backendRequest: PetitionGenerationRequest = {
       topic: payload.additionalRequests || 'Hukuki Dilekçe Talebi',
-      caseText: payload.caseData.analysis?.summary || 'Analiz özeti bulunamadı',
-      decisions: payload.caseData.scoredDecisions?.map(d => d.title || d.id) || []
+      caseText: payload.caseData.analysis || 'Analiz özeti bulunamadı',
+      decisions: payload.caseData.decisions?.map(d => d.title || d.id.toString()) || []
     };
     return httpClient.post<PetitionResponse>(ENDPOINTS.PETITION.GENERATE, backendRequest);
   },
