@@ -262,9 +262,7 @@ public class GeminiController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.CaseText)) return BadRequest("Olay metni gerekli.");
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-    var timeBudgetMs = int.TryParse(Environment.GetEnvironmentVariable("COMPOSITE_TIME_BUDGET_MS"), out var b) ? Math.Clamp(b, 5000, 40000) : 30000; // varsayılan 30 sn
-    int RemainingBudget() => (int)Math.Max(0, timeBudgetMs - stopwatch.ElapsedMilliseconds);
+    // Zaman bütçesi kullanımını kaldırdık: önceki stopwatch / RemainingBudget mantığı temizlendi.
 
         var token = Request.Headers["Authorization"].ToString();
         var sub = _factory.CreateClient("Subscription");
@@ -276,28 +274,20 @@ public class GeminiController : ControllerBase
             return Forbid("Limit tükendi (analysis/keywords/search)");
 
         // 1 & 2: Analiz ve keyword extraction paralel
-        async Task<CaseAnalysisResponse?> RunAnalysisWithTimeout()
+        // Zaman bütçesi yerine doğrudan çağrılar (gerekirse ileride sabit timeout eklenebilir)
+        async Task<CaseAnalysisResponse?> RunAnalysis()
         {
-            try
-            {
-                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(Math.Min(12000, Math.Max(3000, RemainingBudget()/2))));
-                return await _service.AnalyzeCaseTextAsync(request.CaseText);
-            }
-            catch { return new CaseAnalysisResponse { AnalysisResult = "Analiz zaman aşımı" }; }
+            try { return await _service.AnalyzeCaseTextAsync(request.CaseText); }
+            catch { return new CaseAnalysisResponse { AnalysisResult = "Analiz hatası" }; }
         }
-        async Task<List<string>> RunKeywordsWithTimeout()
+        async Task<List<string>> RunKeywords()
         {
-            try
-            {
-                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(Math.Min(10000, Math.Max(3000, RemainingBudget()/2))));
-                var list = await _service.ExtractKeywordsFromCaseAsync(request.CaseText);
-                return list;
-            }
+            try { return await _service.ExtractKeywordsFromCaseAsync(request.CaseText); }
             catch { return new List<string>(); }
         }
 
-        var analysisTask = RunAnalysisWithTimeout();
-        var keywordsTask = RunKeywordsWithTimeout();
+        var analysisTask = RunAnalysis();
+        var keywordsTask = RunKeywords();
         await Task.WhenAll(analysisTask, keywordsTask);
         var analysis = (await analysisTask)?.AnalysisResult ?? string.Empty;
         var keywords = (await keywordsTask) ?? new List<string>();
@@ -310,11 +300,7 @@ public class GeminiController : ControllerBase
                 .ToList();
         }
 
-        if (RemainingBudget() <= 1000)
-        {
-            // Zaman neredeyse bitti, sonraki adımları atla ve boş karar listesi dön.
-            return Ok(new CompositeSearchResponse { Analysis = analysis, Keywords = keywords, Decisions = new List<ScoredDecisionResult>() });
-        }
+    // Önceden burada kalan zaman kontrolü vardı; kaldırıldı.
 
         // 3: SearchService çağrısı
         var searchBase = _configuration["SearchService:BaseUrl"] ?? "http://localhost:5043";
@@ -359,11 +345,9 @@ public class GeminiController : ControllerBase
         var semaphore = new SemaphoreSlim(3);
         var tasks = toScore.Select(async d =>
         {
-            if (RemainingBudget() <= 1500) return; // zaman doluyor
             await semaphore.WaitAsync();
             try
             {
-                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(Math.Min(8000, Math.Max(2000, RemainingBudget()/2))));
                 var rel = await _service.AnalyzeDecisionRelevanceAsync(request.CaseText, d.KararMetni);
                 if (rel != null)
                 {
@@ -397,7 +381,7 @@ public class GeminiController : ControllerBase
             .Take(3)
             .ToList();
 
-        stopwatch.Stop();
+    // Zaman ölçümü kaldırıldı.
 
         // Quota consumption (analysis + keyword + search + relevance as case analysis) - en azından birer tane düşelim.
         try
