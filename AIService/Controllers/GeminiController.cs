@@ -29,7 +29,7 @@ public class GeminiController : ControllerBase
     }
 
     [HttpPost("extract-keywords")]
-    [ProducesResponseType(typeof(KeywordExtractionResponse), 200)]
+    [ProducesResponseType(typeof(KeywordExtractionSearchResponse), 200)]
     public async Task<IActionResult> ExtractKeywords([FromBody] KeywordRequest request)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
@@ -49,8 +49,77 @@ public class GeminiController : ControllerBase
         {
             _logger.LogInformation("Keyword extraction fallback/empty result - quota not consumed (user {UserId})", userId);
         }
-        // Tutarlı JSON shape
-        return Ok(new KeywordExtractionResponse { Keywords = keywords });
+
+        // Ardından SearchService'e keywords ile arama yap
+        List<DecisionSearchResult> mapped = new();
+        int total = 0;
+        try
+        {
+            if (keywords.Count > 0)
+            {
+                var searchBase = _configuration["SearchService:BaseUrl"] ?? "http://localhost:5043";
+                var searchClient = _httpClientFactory.CreateClient();
+                if (!string.IsNullOrEmpty(token)) searchClient.DefaultRequestHeaders.Add("Authorization", token);
+                var searchResp = await searchClient.PostAsJsonAsync($"{searchBase}/api/search", new { keywords });
+                if (searchResp.IsSuccessStatusCode)
+                {
+                    // SearchService artık SimpleSearchResponse döndürüyor: { decisions: [...], totalResults: n }
+                    var json = await searchResp.Content.ReadAsStringAsync();
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(json);
+                        var root = doc.RootElement;
+                        if (root.TryGetProperty("decisions", out var decisionsEl))
+                        {
+                            foreach (var d in decisionsEl.EnumerateArray())
+                            {
+                                var id = d.GetProperty("id").GetInt64();
+                                var yargitay = d.GetProperty("yargitayDairesi").GetString() ?? string.Empty;
+                                var esas = d.GetProperty("esasNo").GetString() ?? string.Empty;
+                                var kararNo = d.GetProperty("kararNo").GetString() ?? string.Empty;
+                                DateTime? kararTarihi = null;
+                                if (d.TryGetProperty("kararTarihi", out var kt) && kt.ValueKind != System.Text.Json.JsonValueKind.Null)
+                                {
+                                    if (DateTime.TryParse(kt.ToString(), out var dt)) kararTarihi = dt;
+                                }
+                                var metin = d.GetProperty("kararMetni").GetString() ?? string.Empty;
+                                mapped.Add(new DecisionSearchResult
+                                {
+                                    Id = id,
+                                    Title = $"Yargıtay {yargitay} - {esas}/{kararNo}",
+                                    Excerpt = metin.Length > 300 ? metin.Substring(0, 300) + "..." : metin,
+                                    DecisionDate = kararTarihi,
+                                    Court = yargitay
+                                });
+                            }
+                        }
+                        if (root.TryGetProperty("totalResults", out var totalEl) && totalEl.ValueKind == System.Text.Json.JsonValueKind.Number)
+                        {
+                            total = totalEl.GetInt32();
+                        }
+                    }
+                    catch (Exception exMap)
+                    {
+                        _logger.LogWarning(exMap, "SearchService response parse hatası (extract-keywords chain)");
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("SearchService arama başarısız status={Status}", searchResp.StatusCode);
+                }
+            }
+        }
+        catch (Exception exSearch)
+        {
+            _logger.LogWarning(exSearch, "Extract-keywords sonrası otomatik arama hata");
+        }
+
+        return Ok(new KeywordExtractionSearchResponse
+        {
+            Keywords = keywords,
+            Decisions = mapped,
+            TotalResults = total
+        });
     }
 
     [HttpPost("analyze-relevance")]
@@ -184,6 +253,138 @@ public class GeminiController : ControllerBase
         }
     }
 
+    // Birleşik uç nokta: olay metni -> analiz, keyword extraction, search, relevance scoring (top 3)
+    [HttpPost("composite-search")] // api/gemini/composite-search
+    [ProducesResponseType(typeof(CompositeSearchResponse), 200)]
+    public async Task<IActionResult> CompositeSearch([FromBody] CompositeSearchRequest request)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (string.IsNullOrWhiteSpace(request.CaseText)) return BadRequest("Olay metni gerekli.");
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var token = Request.Headers["Authorization"].ToString();
+        var sub = _factory.CreateClient("Subscription");
+        if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
+        ValidateAccessDto? usage = null;
+        try { usage = await sub.GetFromJsonAsync<ValidateAccessDto>("api/subscription/usage"); } catch { }
+        if (usage == null) return StatusCode(502, "Subscription service unreachable");
+        if (usage.CaseAnalysisRemaining == 0 || usage.KeywordExtractionRemaining == 0 || usage.SearchRemaining == 0)
+            return Forbid("Limit tükendi (analysis/keywords/search)");
+
+        // 1 & 2: Analiz ve keyword extraction paralel
+        var analysisTask = _service.AnalyzeCaseTextAsync(request.CaseText);
+        var keywordsTask = _service.ExtractKeywordsFromCaseAsync(request.CaseText);
+        await Task.WhenAll(analysisTask, keywordsTask);
+        var analysis = (await analysisTask).AnalysisResult;
+        var keywords = (await keywordsTask) ?? new List<string>();
+        if (keywords.Count == 0)
+        {
+            keywords = request.CaseText
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(w => w.Length > 3)
+                .Take(5)
+                .ToList();
+        }
+
+        // 3: SearchService çağrısı
+        var searchBase = _configuration["SearchService:BaseUrl"] ?? "http://localhost:5043";
+        var searchClient = _httpClientFactory.CreateClient();
+        if (!string.IsNullOrEmpty(token)) searchClient.DefaultRequestHeaders.Add("Authorization", token);
+        List<SearchServiceDecisionDto>? decisionsRaw = null;
+        try
+        {
+            var searchResp = await searchClient.PostAsJsonAsync($"{searchBase}/api/search", new { keywords });
+            if (searchResp.IsSuccessStatusCode)
+            {
+                // SimpleSearchResponse: decisions, totalResults
+                using var doc = System.Text.Json.JsonDocument.Parse(await searchResp.Content.ReadAsStringAsync());
+                if (doc.RootElement.TryGetProperty("decisions", out var decEl))
+                {
+                    decisionsRaw = decEl.EnumerateArray().Select(d => new SearchServiceDecisionDto
+                    {
+                        Id = d.GetProperty("id").GetInt64(),
+                        YargitayDairesi = d.GetProperty("yargitayDairesi").GetString() ?? string.Empty,
+                        EsasNo = d.GetProperty("esasNo").GetString() ?? string.Empty,
+                        KararNo = d.GetProperty("kararNo").GetString() ?? string.Empty,
+                        KararMetni = d.GetProperty("kararMetni").GetString() ?? string.Empty,
+                        KararTarihi = d.TryGetProperty("kararTarihi", out var kt) && kt.ValueKind != System.Text.Json.JsonValueKind.Null && DateTime.TryParse(kt.ToString(), out var dt) ? dt : (DateTime?)null
+                    }).ToList();
+                }
+            }
+            else
+            {
+                _logger.LogWarning("CompositeSearch: SearchService hata status={Status}", searchResp.StatusCode);
+            }
+        }
+        catch (Exception exSearch)
+        {
+            _logger.LogWarning(exSearch, "CompositeSearch Search çağrısı hata");
+        }
+        decisionsRaw ??= new List<SearchServiceDecisionDto>();
+
+        // 4: Relevance scoring (top N veya hepsi - biz max 12 alalım)
+        var maxScore = int.TryParse(Environment.GetEnvironmentVariable("COMPOSITE_SCORE_MAX"), out var tmpMax) ? Math.Clamp(tmpMax, 1, 30) : 12;
+        var toScore = decisionsRaw.Take(maxScore).ToList();
+        var scored = new List<ScoredDecisionResult>();
+        var semaphore = new SemaphoreSlim(4);
+        var tasks = toScore.Select(async d =>
+        {
+            await semaphore.WaitAsync();
+            try
+            {
+                var rel = await _service.AnalyzeDecisionRelevanceAsync(request.CaseText, d.KararMetni);
+                if (rel != null)
+                {
+                    lock (scored)
+                    {
+                        scored.Add(new ScoredDecisionResult
+                        {
+                            Id = d.Id,
+                            Title = $"Yargıtay {d.YargitayDairesi} - {d.EsasNo}/{d.KararNo}",
+                            Excerpt = d.KararMetni.Length > 300 ? d.KararMetni.Substring(0, 300) + "..." : d.KararMetni,
+                            DecisionDate = d.KararTarihi,
+                            Court = d.YargitayDairesi,
+                            Score = rel.Score,
+                            RelevanceExplanation = rel.Explanation,
+                            RelevanceSimilarity = rel.Similarity
+                        });
+                    }
+                }
+            }
+            catch (Exception exRel)
+            {
+                _logger.LogDebug(exRel, "Relevance scoring hata (composite)");
+            }
+            finally { semaphore.Release(); }
+        });
+        await Task.WhenAll(tasks);
+
+        var top3 = scored
+            .OrderByDescending(s => s.Score ?? int.MinValue)
+            .ThenByDescending(s => s.DecisionDate)
+            .Take(3)
+            .ToList();
+
+        // Quota consumption (analysis + keyword + search + relevance as case analysis) - en azından birer tane düşelim.
+        try
+        {
+            await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.CaseAnalysis });
+            await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.KeywordExtraction });
+            await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.Search });
+        }
+        catch (Exception exConsume)
+        {
+            _logger.LogWarning(exConsume, "CompositeSearch quota consumption hata");
+        }
+
+        return Ok(new CompositeSearchResponse
+        {
+            Analysis = analysis,
+            Keywords = keywords,
+            Decisions = top3
+        });
+    }
+
     [HttpPost("test-token")]
     [AllowAnonymous] // Bu endpoint için authentication gerekmez
     [ProducesResponseType(typeof(string), 200)]
@@ -202,7 +403,7 @@ public class GeminiController : ControllerBase
         public string YargitayDairesi { get; set; } = string.Empty;
         public string EsasNo { get; set; } = string.Empty;
         public string KararNo { get; set; } = string.Empty;
-        public DateTime KararTarihi { get; set; }
+        public DateTime? KararTarihi { get; set; }
         public string KararMetni { get; set; } = string.Empty;
     }
 

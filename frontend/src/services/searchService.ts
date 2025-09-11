@@ -1,23 +1,9 @@
 import { httpClient } from './httpClient';
 import { ENDPOINTS } from '../config/api';
-import { CaseAnalysisResponse, KeywordExtractionResponse } from './aiService';
+import { } from './aiService';
 
 export interface SearchFilters { courts?: string[]; caseTypes?: string[]; dateRange?: { from?: string; to?: string }; }
-export interface SearchRequest { caseText: string; filters?: SearchFilters; }
-export interface ScoredDecision {
-  id: string;
-  title: string;
-  score: number;
-  court?: string;
-  summary?: string;
-}
-
-export interface SearchResponse { 
-  analysis: CaseAnalysisResponse; 
-  keywords?: KeywordExtractionResponse; 
-  searchId: string;
-  scoredDecisions?: ScoredDecision[];
-} 
+// Eski çok aşamalı arama kaldırıldı; sadece backend history ve save kullanılıyor.
 // Backend'den gelen gerçek veri yapısı
 export interface SearchHistoryItem { 
   id: number; 
@@ -26,8 +12,6 @@ export interface SearchHistoryItem {
   createdAt: string; 
 }
 
-// Eski interface (ileride kullanılabilir)
-export interface LegacySearchHistoryItem { id: string; createdAt: string; analysis: CaseAnalysisResponse; topDecisionIds?: string[]; }
 export interface SaveDecisionRequest { decisionId: string; notes?: string; }
 
 // Backend DecisionDto format
@@ -44,26 +28,9 @@ export interface DecisionDto {
 }
 
 // Backend'den gelen kapsamlı response
-export interface BackendSearchResponse {
-  decisions: DecisionDto[];
-  analysis: {
-    analysisResult: string;
-  };
-  keywords: {
-    keywords: string[];
-  };
-  totalResults: number;
-}
-
-export interface ExecuteSearchRequest { caseText: string; keywords: string[]; }
-export interface ExecuteSearchResponse { decisions: DecisionDto[]; totalResults: number; }
+// Artık Execute akışı yok; composite AI endpoint kullanılıyor.
 
 export const searchService = {
-  execute: (payload: ExecuteSearchRequest) =>
-    httpClient.post<ExecuteSearchResponse>(ENDPOINTS.SEARCH.SEARCH + '/execute', {
-      caseText: payload.caseText,
-      keywords: payload.keywords
-    }),
   getHistory: () => httpClient.get<SearchHistoryItem[]>(ENDPOINTS.SEARCH.HISTORY),
   saveDecision: (payload: SaveDecisionRequest) => httpClient.post(ENDPOINTS.SEARCH.SAVE_DECISION, payload)
 };
