@@ -262,7 +262,7 @@ public class GeminiController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.CaseText)) return BadRequest("Olay metni gerekli.");
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-    // Zaman bütçesi kullanımını kaldırdık: önceki stopwatch / RemainingBudget mantığı temizlendi.
+   
 
         var token = Request.Headers["Authorization"].ToString();
         var sub = _factory.CreateClient("Subscription");
