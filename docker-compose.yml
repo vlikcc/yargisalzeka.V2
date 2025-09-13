@@ -42,11 +42,14 @@ services:
     ports:
       - "9200:9200"
       - "9600:9600"
+    user: "1000:1000"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:9200 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
+    command: >
+      bash -c "chown -R 1000:1000 /usr/share/opensearch/data && /usr/local/bin/docker-entrypoint.sh"
 
   # Identity Service
   identityservice:
@@ -168,8 +171,8 @@ services:
       - Jwt__Audience=${JWT_AUDIENCE:-http://api-gateway:5000}
       - SubscriptionService__BaseUrl=${SubscriptionService__BaseUrl:-http://subscriptionservice:5002}
       - OpenSearch__Uri=${OpenSearch__Uri:-http://opensearch:9200}
-      - Search__Provider=${Search__Provider:-fulltext}
-      - SEARCH_PROVIDER=fulltext
+      - Search__Provider=${Search__Provider:-opensearch}
+      - SEARCH_PROVIDER=opensearch
     ports:
       - "5043:5004"
     depends_on:
