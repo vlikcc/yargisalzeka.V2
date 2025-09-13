@@ -47,12 +47,12 @@ spec:
             httpGet:
               path: /health
               port: 5004
-            initialDelaySeconds: 45
+            initialDelaySeconds: 60
             periodSeconds: 20
           resources:
             requests:
-              cpu: "100m"
-              memory: "128Mi"
+              cpu: "50m"
+              memory: "64Mi"
             limits:
               cpu: "400m"
               memory: "512Mi"
