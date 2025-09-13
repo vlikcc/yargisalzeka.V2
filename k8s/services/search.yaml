@@ -32,6 +32,10 @@ spec:
               value: "true"
             - name: OpenSearch__Uri
               value: http://opensearch:9200
+            - name: Search__Provider
+              value: "opensearch"
+            - name: SEARCH_PROVIDER
+              value: "opensearch"
             - name: ConnectionStrings__DefaultConnection
               valueFrom:
                 secretKeyRef:
