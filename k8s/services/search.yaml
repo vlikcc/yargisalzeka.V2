@@ -32,10 +32,6 @@ spec:
               value: "true"
             - name: OpenSearch__Uri
               value: http://opensearch:9200
-            - name: Search__Provider
-              value: "opensearch"
-            - name: SEARCH_PROVIDER
-              value: "opensearch"
             - name: ConnectionStrings__DefaultConnection
               valueFrom:
                 secretKeyRef:
@@ -56,10 +52,10 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "256Mi"
+              memory: "128Mi"
             limits:
-              cpu: "1000m"
-              memory: "1Gi"
+              cpu: "400m"
+              memory: "512Mi"
 ---
 apiVersion: v1
 kind: Service
