@@ -203,7 +203,7 @@ jobs:
           set -euo pipefail
           ns=$NAMESPACE
           for d in apigateway identityservice subscriptionservice documentservice searchservice aiservice frontend; do
-            kubectl -n "$ns" rollout status deployment/$d --timeout=300s || exit 1
+            kubectl -n "$ns" rollout status deployment/$d --timeout=600s || exit 1
           done
 
       - name: AIService health & key presence smoke check
