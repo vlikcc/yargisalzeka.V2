@@ -1,3 +1,5 @@
+
+using System.ComponentModel.DataAnnotations.Schema;
 namespace SearchService.Entities;
 
 public class Decision
@@ -10,7 +12,8 @@ public class Decision
 	public string KararMetni { get; set; } = string.Empty;
 
 	// PostgreSQL'deki search_vector alanı ile eşleşen property
-	public string? SearchVector { get; set; }
+		[Column("search_vector")]
+		public string? SearchVector { get; set; }
 }
 
 
