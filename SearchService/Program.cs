@@ -93,8 +93,22 @@ public class Program
 			});
 		}
 
-		// Health endpoint
-		app.MapGet("/health", () => Results.Ok("OK"));
+		// Health endpoint: veritabanı bağlantısını test et
+		app.MapGet("/health", async (IServiceProvider sp) =>
+		{
+			try
+			{
+				using var scope = sp.CreateScope();
+				var db = scope.ServiceProvider.GetRequiredService<SearchDbContext>();
+				// Basit bir sorgu ile bağlantı testi
+				await db.Database.ExecuteSqlRawAsync("SELECT 1;");
+				return Results.Ok("Database connection: OK");
+			}
+			catch (Exception ex)
+			{
+				return Results.Problem($"Database connection error: {ex.Message}");
+			}
+		});
 
 		// Opsiyonel şema oluşturma (EnsureCreated)
 		var ensureCreated = app.Services.GetRequiredService<IConfiguration>().GetValue<bool>("Database:EnsureCreated");
@@ -102,8 +116,16 @@ public class Program
 		{
 			using (var scope = app.Services.CreateScope())
 			{
-				var db = scope.ServiceProvider.GetRequiredService<SearchDbContext>();
-				db.Database.EnsureCreated();
+				try
+				{
+					var db = scope.ServiceProvider.GetRequiredService<SearchDbContext>();
+					db.Database.EnsureCreated();
+					Console.WriteLine("[INFO] Database connection and creation successful.");
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"[ERROR] Database connection or creation failed: {ex.Message}");
+				}
 			}
 		}
 
