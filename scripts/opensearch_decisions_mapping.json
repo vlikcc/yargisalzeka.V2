@@ -1,0 +1,11 @@
+{
+  "mappings": {
+    "properties": {
+      "yargitayDairesi": { "type": "text" },
+      "esasNo": { "type": "keyword" },
+      "kararNo": { "type": "keyword" },
+      "kararMetni": { "type": "text" },
+      "kararTarihi": { "type": "date" }
+    }
+  }
+}
