@@ -300,13 +300,15 @@ public class GeminiController : ControllerBase
                 .ToList();
         }
 
-    // Önceden burada kalan zaman kontrolü vardı; kaldırıldı.
+        // Önceden burada kalan zaman kontrolü vardı; kaldırıldı.
 
         // 3: SearchService çağrısı
-        var searchBase = _configuration["SearchService:BaseUrl"] ?? "http://localhost:5043";
+        var searchBase = _configuration["SearchService:BaseUrl"]; 
         var searchClient = _httpClientFactory.CreateClient();
         if (!string.IsNullOrEmpty(token)) searchClient.DefaultRequestHeaders.Add("Authorization", token);
         List<SearchServiceDecisionDto>? decisionsRaw = null;
+        Console.WriteLine($"CompositeSearch keywords: {string.Join(", ", keywords)}");
+        Console.WriteLine(searchBase);
         try
         {
             var searchResp = await searchClient.PostAsJsonAsync($"{searchBase}/api/search", new { keywords });
