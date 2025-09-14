@@ -22,15 +22,14 @@ public class PostgresSearchProvider : ISearchProvider
 
 		var queryText = string.Join(" & ", keywordsLower); // Anahtar kelimeleri AND ile birleştir
 
-		IQueryable<Entities.Decision> query = _dbContext.Decisions
-			.Where(d => d.KararTarihi != null &&
-				EF.Functions.ToTsVector("turkish", d.SearchVector)
-					.Matches(EF.Functions.PlainToTsQuery("turkish", queryText))
-			);
-
-		var results = await query
-			.OrderByDescending(d => d.KararTarihi)
-			.Take(50)
+		var results = await _dbContext.Decisions
+			.FromSqlInterpolated($@"
+				SELECT * FROM kararlar
+				WHERE karar_tarihi IS NOT NULL
+				AND search_vector @@ plainto_tsquery('turkish', {queryText})
+				ORDER BY karar_tarihi DESC
+				LIMIT 50
+			")
 			.Select(d => new DecisionDto(
 				d.Id,
 				d.YargitayDairesi,
