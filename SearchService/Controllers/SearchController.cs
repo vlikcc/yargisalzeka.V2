@@ -44,7 +44,7 @@ public class SearchController : ControllerBase
 			.Distinct(StringComparer.OrdinalIgnoreCase)
 			.ToList();
 		if (keywords.Count == 0) return BadRequest("Anahtar kelime gerekli.");
-
+		Console.WriteLine($"Search keywords: {string.Join(", ", keywords)}");
 		var sub = _factory.CreateClient("Subscription");
 		var token = Request.Headers["Authorization"].ToString();
 		if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);

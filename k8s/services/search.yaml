@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: searchservice
-          image: velikececi-e8ada5d7hzfhc0g9.azurecr.io/searchservice:prod
+          image: velikececi-e8ada5d7hzfhc0g9.azurecr.io/searchservice:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5004
