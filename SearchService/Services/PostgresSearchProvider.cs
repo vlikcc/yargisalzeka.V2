@@ -20,19 +20,13 @@ public class PostgresSearchProvider : ISearchProvider
 			.Select(k => k.ToLower())
 			.ToList();
 
-		IQueryable<Entities.Decision> query = _dbContext.Decisions
-			.Where(d => d.KararTarihi != null); // NULL tarihleri filtrele
+		var queryText = string.Join(" & ", keywordsLower); // Anahtar kelimeleri AND ile birleştir
 
-		foreach (var k in keywordsLower)
-		{
-			var pattern = "%" + k + "%";
-			query = query.Where(d =>
-				EF.Functions.ILike(d.YargitayDairesi, pattern) ||
-				EF.Functions.ILike(d.EsasNo, pattern) ||
-				EF.Functions.ILike(d.KararNo, pattern) ||
-				EF.Functions.ILike(d.KararMetni, pattern)
+		IQueryable<Entities.Decision> query = _dbContext.Decisions
+			.Where(d => d.KararTarihi != null &&
+				EF.Functions.ToTsVector("turkish", d.SearchVector)
+					.Matches(EF.Functions.PlainToTsQuery("turkish", queryText))
 			);
-		}
 
 		var results = await query
 			.OrderByDescending(d => d.KararTarihi)
