@@ -6,6 +6,54 @@ import { ErrorState } from '../../components/common/ErrorState';
 import { useSearchFlow } from '../../hooks/useSearch';
 import { PetitionGenerator } from '../../components/petition/PetitionGenerator';
 import { Search, Sparkles, FileText, Hash } from 'lucide-react';
+import { Modal } from '../../components/common/Modal';
+
+// Karar kartı ve modal bileşeni
+function DecisionCardWithModal({ decision }: { decision: any }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <div className="card hover-lift p-5 animate-slide-up">
+        <div className="flex items-start justify-between mb-2">
+          <h4 className="font-semibold text-neutral-900 line-clamp-2">{decision.title}</h4>
+          {decision.score !== undefined && (
+            <span className="px-2.5 py-1 bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 text-xs font-semibold rounded-full">Skor: {decision.score}</span>
+          )}
+        </div>
+        {decision.excerpt && (
+          <p className="text-sm text-neutral-600 leading-relaxed line-clamp-3">{decision.excerpt}</p>
+        )}
+        <div className="flex justify-end mt-2">
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            Detayı Gör
+          </Button>
+        </div>
+      </div>
+      <Modal open={open} onClose={() => setOpen(false)} title={decision.title}>
+        <div className="space-y-2">
+          <div className="text-xs text-neutral-500">Skor: {decision.score ?? '-'}</div>
+          <div className="text-xs text-neutral-500">Mahkeme: {decision.court ?? '-'}</div>
+          <div className="text-xs text-neutral-500">
+            Tarih: {decision.decisionDate ? new Date(decision.decisionDate).toLocaleDateString('tr-TR') : '-'}
+          </div>
+          <div className="mt-2 whitespace-pre-line text-sm text-neutral-800">
+            {/* Tam metin varsa onu göster, yoksa excerpt */}
+            {decision.kararMetni || decision.excerpt}
+          </div>
+          {decision.relevanceExplanation && (
+            <div className="mt-2 text-xs text-primary-700">AI Açıklama: {decision.relevanceExplanation}</div>
+          )}
+          {decision.relevanceSimilarity && (
+            <div className="mt-2 text-xs text-primary-700">Benzerlik: {decision.relevanceSimilarity}</div>
+          )}
+        </div>
+        <div className="flex justify-end mt-4">
+          <Button onClick={() => setOpen(false)} className="btn-primary">Kapat</Button>
+        </div>
+      </Modal>
+    </>
+  );
+}
 
 export default function SearchPage() {
   const [text, setText] = useState('');
@@ -175,19 +223,8 @@ export default function SearchPage() {
         )}
         {/* Search Results */}
         {result && result.decisions && result.decisions.length > 0 && result.decisions.map(d => (
-          <div key={d.id} className="card hover-lift p-5 animate-slide-up">
-            <div className="flex items-start justify-between mb-2">
-              <h4 className="font-semibold text-neutral-900 line-clamp-2">{d.title}</h4>
-              {d.score !== undefined && (
-                <span className="px-2.5 py-1 bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 text-xs font-semibold rounded-full">Skor: {d.score}</span>
-              )}
-            </div>
-            {d.excerpt && (
-              <p className="text-sm text-neutral-600 leading-relaxed line-clamp-3">{d.excerpt}</p>
-            )}
-          </div>
+          <DecisionCardWithModal key={d.id} decision={d} />
         ))}
-        {/* Empty States */}
   {!isSearching && result && result.decisions && result.decisions.length === 0 && (
           <div className="glass-card text-center py-8">
             <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
