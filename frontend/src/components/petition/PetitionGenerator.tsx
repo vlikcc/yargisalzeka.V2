@@ -2,11 +2,26 @@ import { useState } from 'react';
 import { petitionService } from '../../services/petitionService';
 import { Button } from '../ui/button';
 import { useAsyncOperation } from '../../hooks/useAsyncOperation';
-import { SearchResponse } from '../../services/searchService';
+
+// CompositeSearchResponse tip tanımı
+export interface CompositeSearchResponse {
+  analysis: string;
+  keywords: string[];
+  decisions: Array<{
+    id: number;
+    title: string;
+    excerpt: string;
+    decisionDate?: string | null;
+    court: string;
+    score?: number | null;
+    relevanceExplanation?: string | null;
+    relevanceSimilarity?: string | null;
+  }>;
+}
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { FileText, AlertCircle } from 'lucide-react';
 
-interface Props { currentSearch?: SearchResponse | null }
+interface Props { currentSearch?: CompositeSearchResponse | null }
 
 export function PetitionGenerator({ currentSearch }: Props) {
   const [additional, setAdditional] = useState('');
@@ -17,7 +32,8 @@ export function PetitionGenerator({ currentSearch }: Props) {
   // 1. Arama sonuçları mevcut olmalı
   // 2. Dilekçe hakkı olmalı (0 değilse)
   // 3. Analiz tamamlanmış olmalı
-  const hasAnalysis = currentSearch?.analysis?.summary || currentSearch?.analysis?.caseType;
+  // CompositeSearchResponse'da analysis alanı string olarak geliyor
+  const hasAnalysis = typeof currentSearch?.analysis === 'string' && currentSearch.analysis.length > 0;
   const canGenerate = !!currentSearch && hasAnalysis && (remaining?.petition ?? 0) !== 0; // -1 sınırsız
 
   const submit = () => {
