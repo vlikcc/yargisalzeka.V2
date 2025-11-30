@@ -19,6 +19,14 @@ builder.Services.AddHttpClient("Subscription", (sp, http) =>
     http.BaseAddress = new Uri(baseUrl);
 });
 
+builder.Services.AddHttpClient("AIService", (sp, http) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = config["AIService:BaseUrl"] ?? "http://aiservice:5012";
+    http.BaseAddress = new Uri(baseUrl);
+    http.Timeout = TimeSpan.FromMinutes(2); // AI işlemleri için daha uzun timeout
+});
+
 builder.Services.AddDbContext<DocumentDbContext>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IPetitionGenerationService, PetitionGenerationService>();

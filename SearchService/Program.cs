@@ -2,11 +2,13 @@
 using Microsoft.EntityFrameworkCore;
 using SearchService.DbContexts;
 using OpenSearch.Client;
+using Nest;
 using SearchService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Net.Http.Json;
+using Elasticsearch.Net;
 
 namespace SearchService;
 
@@ -54,21 +56,56 @@ public class Program
 			http.BaseAddress = new Uri(baseUrl);
 		});
 
-		// OpenSearch client
+		// OpenSearch client (eski uyumluluk için)
 		builder.Services.AddSingleton<IOpenSearchClient>(sp =>
 		{
 			var config = sp.GetRequiredService<IConfiguration>();
 			var uri = new Uri(config["OpenSearch:Uri"] ?? "http://localhost:9200");
-			var settings = new ConnectionSettings(uri)
+			var settings = new OpenSearch.Client.ConnectionSettings(uri)
 				.DisableDirectStreaming();
 			var client = new OpenSearchClient(settings);
 			return client;
 		});
 
+		// Elasticsearch NEST client
+		builder.Services.AddSingleton<IElasticClient>(sp =>
+		{
+			var config = sp.GetRequiredService<IConfiguration>();
+			var uri = new Uri(config["Elasticsearch:Uri"] ?? "http://localhost:9200");
+			var indexName = config["Elasticsearch:Index"] ?? "kararlar";
+			
+			var settings = new Nest.ConnectionSettings(uri)
+				.DefaultIndex(indexName)
+				.DisableDirectStreaming()
+				.EnableDebugMode()
+				.PrettyJson()
+				.RequestTimeout(TimeSpan.FromSeconds(30));
+
+			// Eğer kullanıcı adı/şifre varsa ekle
+			var username = config["Elasticsearch:Username"];
+			var password = config["Elasticsearch:Password"];
+			if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
+			{
+				settings = settings.BasicAuthentication(username, password);
+			}
+
+			return new ElasticClient(settings);
+		});
+
 		// Provider selection (env override -> config)
+		// Desteklenen değerler: elasticsearch, opensearch, fulltext, postgres
 		var provider = Environment.GetEnvironmentVariable("SEARCH_PROVIDER") ?? builder.Configuration["Search:Provider"] ?? "postgres";
 		builder.Services.AddSingleton<SearchProcessingStore>();
-		if (provider.Equals("opensearch", StringComparison.OrdinalIgnoreCase))
+		
+		Console.WriteLine($"[SearchService] Seçilen arama provider: {provider}");
+		
+		if (provider.Equals("elasticsearch", StringComparison.OrdinalIgnoreCase))
+		{
+			// Elasticsearch - sadece kararMetni alanında arama
+			builder.Services.AddScoped<ISearchProvider, ElasticsearchProvider>();
+			Console.WriteLine("[SearchService] ElasticsearchProvider aktif - sadece kararMetni araması");
+		}
+		else if (provider.Equals("opensearch", StringComparison.OrdinalIgnoreCase))
 		{
 			builder.Services.AddScoped<ISearchProvider, OpenSearchProvider>();
 		}

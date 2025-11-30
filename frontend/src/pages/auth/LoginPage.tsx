@@ -4,117 +4,132 @@ import { loginSchema, LoginFormValues } from '../../validation/authSchemas';
 import { authService } from '../../services/authService';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { FormField } from '../../components/forms/FormField';
-import { Mail, Lock, LogIn } from 'lucide-react';
+import { Mail, Lock, Loader2, Scale } from 'lucide-react';
+import { useState } from 'react';
 
 export default function LoginPage() {
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormValues>({ 
+    resolver: zodResolver(loginSchema) 
+  });
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+
   const onSubmit = async (data: LoginFormValues) => {
     try {
+      setError(null);
       const res = await authService.login(data);
       login(res.token, res.user);
-  navigate('/app');
-    } catch {
-      // Basit hata gösterimi ileride toasta dönüşecek
-      alert('Giriş başarısız');
+      navigate('/app');
+    } catch (e) {
+      setError('E-posta veya şifre hatalı');
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-neutral-50 via-primary-50/10 to-neutral-50">
-      <div className="w-full max-w-md">
-        {/* Logo and Title */}
-        <div className="text-center mb-8 animate-fade-in">
-          <div className="w-20 h-20 bg-gradient-to-br from-primary-500 to-primary-700 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-glow animate-float">
-            <div className="w-12 h-12 bg-white rounded-xl"></div>
-          </div>
-          <h1 className="text-3xl font-bold gradient-text mb-2">Yargısal Zeka</h1>
-          <p className="text-neutral-600">Hukuki araştırma yapay zekası</p>
-        </div>
-        
-        {/* Login Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="glass-card space-y-6 animate-slide-up">
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-neutral-900">Hoş Geldiniz</h2>
-            <p className="text-sm text-neutral-600">Devam etmek için giriş yapın</p>
+    <div className="min-h-screen flex">
+      {/* Left side - Form */}
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="w-full max-w-sm">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2 mb-8">
+            <div className="w-9 h-9 bg-primary-800 rounded-lg flex items-center justify-center">
+              <Scale className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-lg font-semibold text-slate-900">Yargısal Zeka</span>
+          </Link>
+          
+          {/* Title */}
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">Giriş Yap</h1>
+            <p className="text-slate-500">Hesabınıza giriş yaparak devam edin</p>
           </div>
           
-          <div className="space-y-4">
-            <FormField label="E-posta Adresi" error={errors.email?.message}>
+          {/* Error message */}
+          {error && (
+            <div className="mb-6 p-3 bg-error-50 border border-error-200 rounded-lg text-sm text-error-700">
+              {error}
+            </div>
+          )}
+          
+          {/* Form */}
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                E-posta
+              </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
-                <Input 
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input 
                   type="email" 
-                  placeholder="ornek@site.com" 
+                  placeholder="ornek@email.com" 
                   {...register('email')} 
-                  className="pl-12"
+                  className={`input pl-10 ${errors.email ? 'border-error-300 focus:border-error-500' : ''}`}
                 />
               </div>
-            </FormField>
+              {errors.email && (
+                <p className="mt-1 text-sm text-error-600">{errors.email.message}</p>
+              )}
+            </div>
             
-            <FormField label="Şifre" error={errors.password?.message}>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Şifre
+              </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
-                <Input 
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input 
                   type="password" 
                   placeholder="••••••••" 
                   {...register('password')} 
-                  className="pl-12"
+                  className={`input pl-10 ${errors.password ? 'border-error-300 focus:border-error-500' : ''}`}
                 />
               </div>
-            </FormField>
-          </div>
+              {errors.password && (
+                <p className="mt-1 text-sm text-error-600">{errors.password.message}</p>
+              )}
+            </div>
+            
+            <button 
+              type="submit" 
+              className="btn-primary w-full justify-center py-2.5" 
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Giriş yapılıyor...
+                </>
+              ) : (
+                'Giriş Yap'
+              )}
+            </button>
+          </form>
           
-          <div className="flex items-center justify-between">
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input type="checkbox" className="w-4 h-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500" />
-              <span className="text-sm text-neutral-600">Beni hatırla</span>
-            </label>
-            <Link to="/forgot-password" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-              Şifremi unuttum
+          {/* Register link */}
+          <p className="mt-6 text-center text-sm text-slate-500">
+            Hesabınız yok mu?{' '}
+            <Link to="/register" className="font-medium text-primary-700 hover:text-primary-800">
+              Ücretsiz Kayıt Ol
             </Link>
+          </p>
+        </div>
+      </div>
+      
+      {/* Right side - Branding */}
+      <div className="hidden lg:flex lg:flex-1 bg-primary-800 items-center justify-center p-12">
+        <div className="max-w-md text-center">
+          <div className="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-8">
+            <Scale className="w-10 h-10 text-white" />
           </div>
-          
-          <Button 
-            type="submit" 
-            className="w-full btn-primary py-3 font-semibold shadow-glow" 
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                Giriş yapılıyor...
-              </>
-            ) : (
-              <>
-                <LogIn className="w-4 h-4 mr-2" />
-                Giriş Yap
-              </>
-            )}
-          </Button>
-          
-          <div className="text-center pt-4 border-t border-neutral-200/50">
-            <p className="text-sm text-neutral-600">
-              Henüz hesabınız yok mu?{' '}
-              <Link to="/register" className="text-primary-600 hover:text-primary-700 font-semibold">
-                Ücretsiz Kayıt Ol
-              </Link>
-            </p>
-          </div>
-        </form>
-        
-        {/* Footer */}
-        <p className="text-center text-xs text-neutral-500 mt-8">
-          Giriş yaparak{' '}
-          <Link to="/terms" className="text-primary-600 hover:underline">Kullanım Koşullarını</Link>
-          {' '}ve{' '}
-          <Link to="/privacy" className="text-primary-600 hover:underline">Gizlilik Politikasını</Link>
-          {' '}kabul etmiş olursunuz.
-        </p>
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Hukuki Araştırmalarınızı Hızlandırın
+          </h2>
+          <p className="text-primary-200">
+            Yapay zeka destekli platform ile yargı kararlarını analiz edin, 
+            anahtar kelimeleri çıkarın ve profesyonel dilekçe taslakları oluşturun.
+          </p>
+        </div>
       </div>
     </div>
   );

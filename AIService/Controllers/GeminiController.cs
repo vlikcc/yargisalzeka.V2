@@ -39,7 +39,7 @@ public class GeminiController : ControllerBase
         if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
         var access = await sub.GetFromJsonAsync<ValidateAccessDto>($"api/subscription/usage");
         if (access == null) return StatusCode(502, "Subscription service unreachable");
-        if (access.KeywordExtractionRemaining == 0) return Forbid("Limit tükendi");
+        if (access.KeywordExtractionRemaining == 0) return StatusCode(403, new { error = "Anahtar kelime çıkarma limitiniz tükendi" });
         var keywords = await _service.ExtractKeywordsFromCaseAsync(request.CaseText);
         if (keywords.Count > 0)
         {
@@ -133,7 +133,7 @@ public class GeminiController : ControllerBase
     if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
     var access = await sub.GetFromJsonAsync<ValidateAccessDto>("api/subscription/usage");
     if (access == null) return StatusCode(502, "Subscription service unreachable");
-    if (access.CaseAnalysisRemaining == 0) return Forbid("Limit tükendi");
+    if (access.CaseAnalysisRemaining == 0) return StatusCode(403, new { error = "Olay analizi limitiniz tükendi" });
         var result = await _service.AnalyzeDecisionRelevanceAsync(request.CaseText, request.DecisionText);
         if (!string.Equals(result.Explanation, "Analiz sırasında hata oluştu", StringComparison.OrdinalIgnoreCase))
         {
@@ -157,7 +157,7 @@ public class GeminiController : ControllerBase
     if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
     var access = await sub.GetFromJsonAsync<ValidateAccessDto>("api/subscription/usage");
     if (access == null) return StatusCode(502, "Subscription service unreachable");
-    if (access.PetitionRemaining == 0) return Forbid("Limit tükendi");
+    if (access.PetitionRemaining == 0) return StatusCode(403, new { error = "Dilekçe oluşturma limitiniz tükendi" });
         var result = await _service.GeneratePetitionTemplateAsync(request.CaseText, request.RelevantDecisions);
         if (!string.IsNullOrWhiteSpace(result) && !result.StartsWith("Dilekçe şablonu oluşturulamadı", StringComparison.OrdinalIgnoreCase))
         {
@@ -227,7 +227,7 @@ public class GeminiController : ControllerBase
                 _logger.LogWarning("AnalyzeCase subscription usage yanıtı null döndü");
                 return StatusCode(502, new { error = "Subscription service unreachable (usage null)" });
             }
-            if (access.CaseAnalysisRemaining == 0) return Forbid("Limit tükendi");
+            if (access.CaseAnalysisRemaining == 0) return StatusCode(403, new { error = "Olay analizi limitiniz tükendi" });
             var result = await _service.AnalyzeCaseTextAsync(request.CaseText);
             if (!string.IsNullOrWhiteSpace(result.AnalysisResult) && !string.Equals(result.AnalysisResult, "Olay metni analiz hatası", StringComparison.OrdinalIgnoreCase))
             {
@@ -271,7 +271,7 @@ public class GeminiController : ControllerBase
         try { usage = await sub.GetFromJsonAsync<ValidateAccessDto>("api/subscription/usage"); } catch { }
         if (usage == null) return StatusCode(502, "Subscription service unreachable");
         if (usage.CaseAnalysisRemaining == 0 || usage.KeywordExtractionRemaining == 0 || usage.SearchRemaining == 0)
-            return Forbid("Limit tükendi (analysis/keywords/search)");
+            return StatusCode(403, new { error = "Limit tükendi (analysis/keywords/search)" });
 
         // 1 & 2: Analiz ve keyword extraction paralel
         // Zaman bütçesi yerine doğrudan çağrılar (gerekirse ileride sabit timeout eklenebilir)
@@ -359,7 +359,8 @@ public class GeminiController : ControllerBase
                         {
                             Id = d.Id,
                             Title = $"Yargıtay {d.YargitayDairesi} - {d.EsasNo}/{d.KararNo}",
-                            Excerpt = d.KararMetni.Length > 300 ? d.KararMetni.Substring(0, 300) + "..." : d.KararMetni,
+                            Excerpt = d.KararMetni.Length > 500 ? d.KararMetni.Substring(0, 500) + "..." : d.KararMetni,
+                            FullText = d.KararMetni,
                             DecisionDate = d.KararTarihi,
                             Court = d.YargitayDairesi,
                             Score = rel.Score,
@@ -403,6 +404,195 @@ public class GeminiController : ControllerBase
             Keywords = keywords,
             Decisions = top3
         });
+    }
+
+    /// <summary>
+    /// Tam Akış Endpoint'i: Olay metni -> Analiz -> Anahtar Kelimeler -> Arama -> Top 3 Karar -> Dilekçe
+    /// Tek çağrıda tüm senaryoyu gerçekleştirir.
+    /// </summary>
+    [HttpPost("full-flow")]
+    [ProducesResponseType(typeof(FullFlowResponse), 200)]
+    public async Task<IActionResult> FullFlow([FromBody] FullFlowRequest request)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (string.IsNullOrWhiteSpace(request.CaseText)) return BadRequest("Olay metni gerekli.");
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var token = Request.Headers["Authorization"].ToString();
+        var sub = _factory.CreateClient("Subscription");
+        if (!string.IsNullOrEmpty(token)) sub.DefaultRequestHeaders.Add("Authorization", token);
+
+        // Quota kontrolü
+        ValidateAccessDto? usage = null;
+        try { usage = await sub.GetFromJsonAsync<ValidateAccessDto>("api/subscription/usage"); } catch { }
+        if (usage == null) return StatusCode(502, "Subscription service unreachable");
+        if (usage.CaseAnalysisRemaining == 0 || usage.KeywordExtractionRemaining == 0 || 
+            usage.SearchRemaining == 0 || (request.GeneratePetition && usage.PetitionRemaining == 0))
+        {
+            return StatusCode(403, new { error = "Yeterli kullanım hakkınız yok" });
+        }
+
+        var response = new FullFlowResponse();
+
+        try
+        {
+            // ADIM 1 & 2: Paralel olarak olay analizi ve anahtar kelime çıkarma
+            _logger.LogInformation("FullFlow başlatıldı - UserId: {UserId}", userId);
+            
+            var analysisTask = _service.AnalyzeCaseTextAsync(request.CaseText);
+            var keywordsTask = _service.ExtractKeywordsFromCaseAsync(request.CaseText);
+            
+            await Task.WhenAll(analysisTask, keywordsTask);
+            
+            response.Analysis = (await analysisTask)?.AnalysisResult ?? "Analiz yapılamadı";
+            response.Keywords = (await keywordsTask) ?? new List<string>();
+            
+            // Anahtar kelime bulunamadıysa basit tokenization
+            if (response.Keywords.Count == 0)
+            {
+                response.Keywords = request.CaseText
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Where(w => w.Length > 3)
+                    .Take(5)
+                    .ToList();
+            }
+
+            _logger.LogInformation("Analiz ve keyword çıkarma tamamlandı. Keywords: {Keywords}", string.Join(", ", response.Keywords));
+
+            // ADIM 3: Veritabanı araması
+            var searchBase = _configuration["SearchService:BaseUrl"];
+            var searchClient = _httpClientFactory.CreateClient();
+            if (!string.IsNullOrEmpty(token)) searchClient.DefaultRequestHeaders.Add("Authorization", token);
+            
+            List<SearchServiceDecisionDto> decisionsRaw = new();
+            try
+            {
+                var searchResp = await searchClient.PostAsJsonAsync($"{searchBase}/api/search", new { keywords = response.Keywords });
+                if (searchResp.IsSuccessStatusCode)
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(await searchResp.Content.ReadAsStringAsync());
+                    if (doc.RootElement.TryGetProperty("decisions", out var decEl))
+                    {
+                        decisionsRaw = decEl.EnumerateArray().Select(d => new SearchServiceDecisionDto
+                        {
+                            Id = d.GetProperty("id").GetInt64(),
+                            YargitayDairesi = d.GetProperty("yargitayDairesi").GetString() ?? string.Empty,
+                            EsasNo = d.GetProperty("esasNo").GetString() ?? string.Empty,
+                            KararNo = d.GetProperty("kararNo").GetString() ?? string.Empty,
+                            KararMetni = d.GetProperty("kararMetni").GetString() ?? string.Empty,
+                            KararTarihi = d.TryGetProperty("kararTarihi", out var kt) && kt.ValueKind != System.Text.Json.JsonValueKind.Null && DateTime.TryParse(kt.ToString(), out var dt) ? dt : null
+                        }).ToList();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "FullFlow: Arama hatası");
+            }
+
+            response.TotalDecisionsFound = decisionsRaw.Count;
+            _logger.LogInformation("Arama tamamlandı. Bulunan karar sayısı: {Count}", decisionsRaw.Count);
+
+            // ADIM 4: Relevance skorlama ve Top 3 seçimi
+            if (decisionsRaw.Count > 0)
+            {
+                var maxScore = Math.Min(8, decisionsRaw.Count);
+                var toScore = decisionsRaw.Take(maxScore).ToList();
+                var scored = new List<ScoredDecisionResult>();
+                var semaphore = new SemaphoreSlim(3); // 3 paralel AI çağrısı
+
+                var tasks = toScore.Select(async d =>
+                {
+                    await semaphore.WaitAsync();
+                    try
+                    {
+                        var rel = await _service.AnalyzeDecisionRelevanceAsync(request.CaseText, d.KararMetni);
+                        if (rel != null)
+                        {
+                            lock (scored)
+                            {
+                                scored.Add(new ScoredDecisionResult
+                                {
+                                    Id = d.Id,
+                                    Title = $"Yargıtay {d.YargitayDairesi} - {d.EsasNo}/{d.KararNo}",
+                                    Excerpt = d.KararMetni.Length > 500 ? d.KararMetni.Substring(0, 500) + "..." : d.KararMetni,
+                                    FullText = d.KararMetni,
+                                    DecisionDate = d.KararTarihi,
+                                    Court = d.YargitayDairesi,
+                                    Score = rel.Score,
+                                    RelevanceExplanation = rel.Explanation,
+                                    RelevanceSimilarity = rel.Similarity
+                                });
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Relevance scoring hata");
+                    }
+                    finally { semaphore.Release(); }
+                });
+
+                await Task.WhenAll(tasks);
+
+                response.TopDecisions = scored
+                    .OrderByDescending(s => s.Score ?? int.MinValue)
+                    .ThenByDescending(s => s.DecisionDate)
+                    .Take(3)
+                    .ToList();
+            }
+
+            _logger.LogInformation("Skorlama tamamlandı. Top 3 karar seçildi.");
+
+            // ADIM 5: Dilekçe oluşturma (opsiyonel)
+            if (request.GeneratePetition && response.TopDecisions.Count > 0)
+            {
+                try
+                {
+                    var relevantDecisions = response.TopDecisions.Select(d => new RelevantDecisionDto
+                    {
+                        Title = d.Title,
+                        Summary = d.RelevanceExplanation ?? d.Excerpt
+                    }).ToList();
+
+                    response.Petition = await _service.GeneratePetitionTemplateAsync(request.CaseText, relevantDecisions);
+                    response.PetitionGenerated = !string.IsNullOrWhiteSpace(response.Petition);
+                    
+                    if (response.PetitionGenerated)
+                    {
+                        await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.Petition });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Dilekçe oluşturma hatası");
+                    response.Petition = "Dilekçe oluşturulamadı. Lütfen ayrı olarak deneyin.";
+                }
+            }
+
+            // Quota tüketimi
+            try
+            {
+                await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.CaseAnalysis });
+                await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.KeywordExtraction });
+                await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.Search });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Quota consumption hatası");
+            }
+
+            response.Success = true;
+            _logger.LogInformation("FullFlow tamamlandı başarıyla - UserId: {UserId}", userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "FullFlow genel hata");
+            response.Success = false;
+            response.ErrorMessage = "İşlem sırasında bir hata oluştu";
+        }
+
+        return Ok(response);
     }
 
     [HttpPost("test-token")]

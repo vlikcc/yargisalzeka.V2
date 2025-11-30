@@ -6,163 +6,94 @@ import {
   CreditCard,
   History,
   User,
-  BarChart3,
-  Settings,
   Shield,
   Users,
-  Activity
+  Activity,
+  Scale
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
-const navigationItems = [
-  { to: '/app', label: 'Dashboard', icon: Home, gradient: 'from-blue-500 to-blue-700' },
-  { to: '/app/search', label: 'Akıllı Arama', icon: Search, gradient: 'from-primary-500 to-primary-700' },
-  { to: '/app/petitions', label: 'Dilekçeler', icon: FileText, gradient: 'from-green-500 to-green-700' },
-  { to: '/app/history', label: 'Geçmiş', icon: History, gradient: 'from-amber-500 to-amber-700' },
-  { to: '/app/subscription', label: 'Abonelik', icon: CreditCard, gradient: 'from-purple-500 to-purple-700' },
-  { to: '/app/profile', label: 'Profil', icon: User, gradient: 'from-pink-500 to-pink-700' },
+const navItems = [
+  { to: '/app', label: 'Ana Sayfa', icon: Home },
+  { to: '/app/search', label: 'Arama', icon: Search },
+  { to: '/app/petitions', label: 'Dilekçeler', icon: FileText },
+  { to: '/app/history', label: 'Geçmiş', icon: History },
+  { to: '/app/subscription', label: 'Abonelik', icon: CreditCard },
+  { to: '/app/profile', label: 'Profil', icon: User },
 ];
 
-const adminNavigationItems = [
-  { to: '/admin', label: 'Admin Dashboard', icon: Shield, gradient: 'from-red-500 to-red-700' },
-  { to: '/admin/users', label: 'Kullanıcı Yönetimi', icon: Users, gradient: 'from-orange-500 to-orange-700' },
-  { to: '/admin/monitoring', label: 'Sistem Monitoring', icon: Activity, gradient: 'from-cyan-500 to-cyan-700' },
+const adminItems = [
+  { to: '/admin', label: 'Dashboard', icon: Shield },
+  { to: '/admin/users', label: 'Kullanıcılar', icon: Users },
+  { to: '/admin/monitoring', label: 'Sistem', icon: Activity },
 ];
 
 export function Sidebar() {
   const { state } = useAuth();
   const isAdmin = state.user?.role === 'Admin' || state.user?.role === 'SuperAdmin';
+
   return (
-    <aside className="w-72 glass border-r border-white/10 backdrop-blur-xl hidden lg:flex flex-col">
-      {/* Logo Section */}
-      <div className="h-16 flex items-center px-6 border-b border-white/10">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center shadow-glow animate-float">
-            <div className="w-6 h-6 bg-white rounded-lg"></div>
+    <aside className="w-64 bg-white border-r border-slate-200 hidden lg:flex flex-col">
+      {/* Logo */}
+      <div className="h-16 flex items-center px-6 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-primary-800 rounded-lg flex items-center justify-center">
+            <Scale className="w-4 h-4 text-white" />
           </div>
-          <span className="text-lg font-bold gradient-text">Yargısal Zeka</span>
+          <span className="font-semibold text-slate-900">Yargısal Zeka</span>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-6 space-y-2">
-        {navigationItems.map(item => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/app'}
-              className={({ isActive }) =>
-                `relative flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 group overflow-hidden ${
-                  isActive
-                    ? 'text-white shadow-glow'
-                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/50'
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  {isActive && (
-                    <div className={`absolute inset-0 bg-gradient-to-r ${item.gradient} rounded-xl`}></div>
-                  )}
-                  <div className="relative flex items-center space-x-3 w-full">
-                    <div className={`p-2 rounded-lg transition-all duration-300 ${
-                      isActive 
-                        ? 'bg-white/20' 
-                        : 'bg-neutral-100 group-hover:bg-primary-100'
-                    }`}>
-                      <Icon className={`w-5 h-5 ${
-                        isActive 
-                          ? 'text-white' 
-                          : 'text-neutral-600 group-hover:text-primary-600'
-                      }`} />
-                    </div>
-                    <span className={`flex-1 ${
-                      isActive ? 'font-semibold' : ''
-                    }`}>{item.label}</span>
-                    {isActive && (
-                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                    )}
-                  </div>
-                </>
-              )}
-            </NavLink>
-          );
-        })}
+      <nav className="flex-1 p-4 space-y-1">
+        {navItems.map(item => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === '/app'}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-primary-50 text-primary-800'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`
+            }
+          >
+            <item.icon className="w-5 h-5" />
+            {item.label}
+          </NavLink>
+        ))}
 
-        {/* Admin Navigation - Only visible for admin users */}
+        {/* Admin Section */}
         {isAdmin && (
-          <>
-            <div className="mt-6 pt-6 border-t border-white/10">
-              <div className="px-4 py-2 text-xs font-bold text-neutral-400 uppercase tracking-wider">
-                Admin Paneli
-              </div>
-              <div className="mt-2 space-y-2">
-                {adminNavigationItems.map(item => {
-                  const Icon = item.icon;
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      className={({ isActive }) =>
-                        `relative flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 group overflow-hidden ${
-                          isActive
-                            ? 'text-white shadow-glow'
-                            : 'text-neutral-600 hover:text-neutral-900 hover:bg-white/50'
-                        }`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          {isActive && (
-                            <div className={`absolute inset-0 bg-gradient-to-r ${item.gradient} rounded-xl`}></div>
-                          )}
-                          <div className="relative flex items-center space-x-3 w-full">
-                            <div className={`p-2 rounded-lg transition-all duration-300 ${
-                              isActive 
-                                ? 'bg-white/20' 
-                                : 'bg-neutral-100 group-hover:bg-red-100'
-                            }`}>
-                              <Icon className={`w-5 h-5 ${
-                                isActive 
-                                  ? 'text-white' 
-                                  : 'text-neutral-600 group-hover:text-red-600'
-                              }`} />
-                            </div>
-                            <span className={`flex-1 ${
-                              isActive ? 'font-semibold' : ''
-                            }`}>{item.label}</span>
-                            {isActive && (
-                              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </NavLink>
-                  );
-                })}
-              </div>
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <div className="px-3 mb-2 text-xs font-medium text-slate-400 uppercase tracking-wider">
+              Admin
             </div>
-          </>
+            {adminItems.map(item => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-primary-50 text-primary-800'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`
+                }
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
         )}
       </nav>
 
-      {/* Footer Section */}
-      <div className="p-6 border-t border-white/10">
-        <div className="glass-card p-4 hover:shadow-glow transition-all duration-300 cursor-pointer">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl flex items-center justify-center shadow-soft">
-              <BarChart3 className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-neutral-900">Kullanım İstatistikleri</p>
-              <p className="text-xs text-neutral-500">Aylık kullanımınızı takip edin</p>
-            </div>
-          </div>
-          <div className="mt-3 h-2 bg-neutral-100 rounded-full overflow-hidden">
-            <div className="h-full w-3/4 bg-gradient-to-r from-primary-400 to-primary-600 rounded-full animate-pulse-gentle"></div>
-          </div>
+      {/* Footer */}
+      <div className="p-4 border-t border-slate-100">
+        <div className="px-3 py-2 text-xs text-slate-400">
+          © 2024 Yargısal Zeka
         </div>
       </div>
     </aside>

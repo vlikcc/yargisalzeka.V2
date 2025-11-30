@@ -19,14 +19,23 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [ { "Host": "aiservice", "Port": 5012 } ],
       "UpstreamPathTemplate": "/api/gemini/{everything}",
-      "UpstreamHttpMethod": [ "POST" ]
+      "UpstreamHttpMethod": [ "POST" ],
+      "RouteClaimsRequirement": {},
+      "UpstreamHeaderTransform": {},
+      "DownstreamHeaderTransform": {},
+      "QoSOptions": {
+        "TimeoutValue": 300000
+      }
     },
     {
       "DownstreamPathTemplate": "/api/gemini/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [ { "Host": "aiservice", "Port": 5012 } ],
       "UpstreamPathTemplate": "/gemini/{everything}",
-      "UpstreamHttpMethod": [ "POST" ]
+      "UpstreamHttpMethod": [ "POST" ],
+      "QoSOptions": {
+        "TimeoutValue": 300000
+      }
     },
     {
       "DownstreamPathTemplate": "/api/search",

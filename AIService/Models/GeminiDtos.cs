@@ -89,6 +89,7 @@ public class ScoredDecisionResult
     public long Id { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Excerpt { get; set; } = string.Empty;
+    public string? FullText { get; set; }
     public DateTime? DecisionDate { get; set; }
     public string Court { get; set; } = string.Empty;
     public int? Score { get; set; }
@@ -109,4 +110,43 @@ public class TestTokenRequest
     public string UserId { get; set; } = string.Empty;
     [Required]
     public string Email { get; set; } = string.Empty;
+}
+
+// Tam Akış (Full-Flow) için DTO'lar
+public class FullFlowRequest
+{
+    [Required]
+    public string CaseText { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Eğer true ise, arama sonuçlarına göre dilekçe de oluşturulur
+    /// </summary>
+    public bool GeneratePetition { get; set; } = false;
+    
+    /// <summary>
+    /// Dilekçe konusu (opsiyonel)
+    /// </summary>
+    public string? PetitionTopic { get; set; }
+}
+
+public class FullFlowResponse
+{
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+    
+    // Adım 1: Olay Analizi
+    public string Analysis { get; set; } = string.Empty;
+    
+    // Adım 2: Anahtar Kelimeler
+    public List<string> Keywords { get; set; } = new();
+    
+    // Adım 3: Arama Sonuçları
+    public int TotalDecisionsFound { get; set; }
+    
+    // Adım 4: En Uygun 3 Karar (skorlu)
+    public List<ScoredDecisionResult> TopDecisions { get; set; } = new();
+    
+    // Adım 5: Dilekçe (opsiyonel)
+    public bool PetitionGenerated { get; set; }
+    public string? Petition { get; set; }
 }

@@ -1,201 +1,205 @@
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { StatCard, UsageChart, SearchHistoryList } from '../../components/dashboard';
-import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Search,
-  FileText,
-  BarChart3,
-  Zap,
-  TrendingUp,
-  Clock,
-  Target
-} from 'lucide-react';
+import { Search, FileText, BarChart3, Clock, ArrowRight, Zap } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { usage, plan, remaining, loading: subscriptionLoading } = useSubscription();
+  const { usage, plan, remaining, loading } = useSubscription();
   const { state: authState } = useAuth();
   const navigate = useNavigate();
 
-  const totals = useMemo(() => {
-    if (!usage) return null;
-    const total = usage.searches + usage.caseAnalyses + usage.petitions + usage.keywordExtractions;
-    return { total };
-  }, [usage]);
+  const userName = authState.user?.firstName || 'Kullanıcı';
 
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
-      <div className="glass-card animate-fade-in">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold gradient-text mb-1">
-              Hoş geldiniz, {authState.user?.firstName || 'Kullanıcı'}!
-            </h1>
-            <p className="text-neutral-600">
-              Hukuki araştırma ve analiz platformunuza hoş geldiniz
-            </p>
-          </div>
-          <button
-            onClick={() => navigate('/app/search')}
-            className="btn-primary px-6 py-3 font-semibold shadow-glow hidden md:flex items-center"
-          >
-            <Search className="w-4 h-4 mr-2" />
-            Yeni Arama Başlat
-          </button>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="heading-3">Hoş geldiniz, {userName}</h1>
+          <p className="text-small mt-1">Hukuki araştırma platformunuza genel bakış</p>
         </div>
-      </div>
-      
-      {/* Üst İstatistik Kartları */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Toplam İşlem"
-          value={totals?.total ?? '-'}
-          description="Tüm kullanım türlerinin toplamı"
-          icon={<BarChart3 className="w-6 h-6" />}
-          loading={subscriptionLoading}
-          trend="up"
-          trendValue="+12%"
-          className="md:col-span-2 lg:col-span-1"
-        />
-        <StatCard
-          title="Akıllı Aramalar"
-          value={usage?.searches}
-          description="Gerçekleştirilen arama sayısı"
-          icon={<Search className="w-6 h-6" />}
-          loading={subscriptionLoading}
-          trend="up"
-          trendValue="+8%"
-        />
-        <StatCard
-          title="Karar Analizi"
-          value={usage?.caseAnalyses}
-          description="AI ile analiz edilen kararlar"
-          icon={<TrendingUp className="w-6 h-6" />}
-          loading={subscriptionLoading}
-          trend="neutral"
-          trendValue="Bu ay"
-        />
-        <StatCard
-          title="Dilekçe Taslakları"
-          value={usage?.petitions}
-          description="Oluşturulan dilekçe sayısı"
-          icon={<FileText className="w-6 h-6" />}
-          loading={subscriptionLoading}
-          trend="up"
-          trendValue="+15%"
-        />
+        <button
+          onClick={() => navigate('/app/search')}
+          className="btn-primary"
+        >
+          <Search className="w-4 h-4 mr-2" />
+          Yeni Arama
+        </button>
       </div>
 
-      {/* Orta Bölüm: Kullanım Analizi + Geçmiş */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <div className="card">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl flex items-center justify-center shadow-soft">
-                  <BarChart3 className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-neutral-900">Kullanım Analizi</h3>
-                  <p className="text-sm text-neutral-600">Aylık kullanım trendleriniz</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2 px-3 py-1.5 bg-primary-50 rounded-full">
-                <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse"></div>
-                <span className="text-xs font-medium text-primary-700">Bu ay</span>
-              </div>
-            </div>
-            <UsageChart usage={usage} loading={subscriptionLoading} />
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <SearchHistoryList />
-
-          {/* Quick Actions */}
-          <div className="glass-card">
-            <h3 className="text-lg font-bold text-neutral-900 mb-4">Hızlı İşlemler</h3>
-            <div className="space-y-3">
-              <button 
-                onClick={() => navigate('/app/search')} 
-                className="w-full flex items-center space-x-3 p-4 rounded-xl bg-gradient-to-r from-primary-50 to-primary-100 hover:from-primary-100 hover:to-primary-200 text-primary-700 transition-all duration-200 group hover:shadow-soft"
-              >
-                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-soft group-hover:shadow-medium transition-all">
-                  <Search className="w-5 h-5" />
-                </div>
-                <span className="text-sm font-semibold flex-1 text-left">Yeni Arama</span>
-                <div className="opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                  <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center">
-                    <span className="text-white text-xs">→</span>
-                  </div>
-                </div>
-              </button>
-
-              <button 
-                onClick={() => navigate('/app/petitions')} 
-                className="w-full flex items-center space-x-3 p-4 rounded-xl bg-gradient-to-r from-accent-50 to-accent-100 hover:from-accent-100 hover:to-accent-200 text-accent-700 transition-all duration-200 group hover:shadow-soft"
-              >
-                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-soft group-hover:shadow-medium transition-all">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <span className="text-sm font-semibold flex-1 text-left">Dilekçe Oluştur</span>
-                <div className="opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                  <div className="w-6 h-6 bg-accent-600 rounded-full flex items-center justify-center">
-                    <span className="text-white text-xs">→</span>
-                  </div>
-                </div>
-              </button>
-
-              <button 
-                onClick={() => navigate('/app/history')} 
-                className="w-full flex items-center space-x-3 p-4 rounded-xl bg-gradient-to-r from-neutral-50 to-neutral-100 hover:from-neutral-100 hover:to-neutral-200 text-neutral-700 transition-all duration-200 group hover:shadow-soft"
-              >
-                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-soft group-hover:shadow-medium transition-all">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <span className="text-sm font-semibold flex-1 text-left">Geçmişi Görüntüle</span>
-                <div className="opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                  <div className="w-6 h-6 bg-neutral-600 rounded-full flex items-center justify-center">
-                    <span className="text-white text-xs">→</span>
-                  </div>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Alt Kartlar */}
-      <div className="grid gap-6 md:grid-cols-3">
+      {/* Stats Grid */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Aramalar"
+          value={loading ? '...' : usage?.searches ?? 0}
+          icon={<Search className="w-5 h-5" />}
+        />
+        <StatCard
+          title="Analizler"
+          value={loading ? '...' : usage?.caseAnalyses ?? 0}
+          icon={<BarChart3 className="w-5 h-5" />}
+        />
+        <StatCard
+          title="Dilekçeler"
+          value={loading ? '...' : usage?.petitions ?? 0}
+          icon={<FileText className="w-5 h-5" />}
+        />
         <StatCard
           title="Anahtar Kelime"
-          value={usage?.keywordExtractions}
-          description="Çıkarılan anahtar kelime sayısı"
-          icon={<Zap className="w-6 h-6" />}
-          loading={subscriptionLoading}
-          trend="up"
-          trendValue="+5%"
-        />
-        <StatCard
-          title="Abonelik Planı"
-          value={plan?.name || '-'}
-          description={plan ? `Aylık ${plan.price}₺` : 'Plan bilgisi yok'}
-          icon={<Target className="w-6 h-6" />}
-          loading={subscriptionLoading}
-        />
-        <StatCard
-          title="Kalan Krediler"
-          value={remaining ? 'Aktif' : '-'}
-          description={remaining ?
-            `Arama: ${remaining.search === -1 ? '∞' : remaining.search} | Analiz: ${remaining.caseAnalysis === -1 ? '∞' : remaining.caseAnalysis}` :
-            'Bilgi yok'
-          }
-          icon={<Clock className="w-6 h-6" />}
-          loading={subscriptionLoading}
+          value={loading ? '...' : usage?.keywordExtractions ?? 0}
+          icon={<Zap className="w-5 h-5" />}
         />
       </div>
+
+      {/* Main Content Grid */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Quick Actions */}
+        <div className="lg:col-span-2 card p-6">
+          <h2 className="heading-4 mb-4">Hızlı İşlemler</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <QuickActionCard
+              title="Akıllı Arama"
+              description="Yapay zeka ile karar arayın"
+              icon={<Search className="w-5 h-5" />}
+              onClick={() => navigate('/app/search')}
+              primary
+            />
+            <QuickActionCard
+              title="Dilekçe Oluştur"
+              description="Profesyonel dilekçe taslağı"
+              icon={<FileText className="w-5 h-5" />}
+              onClick={() => navigate('/app/petitions')}
+            />
+            <QuickActionCard
+              title="Arama Geçmişi"
+              description="Önceki aramalarınız"
+              icon={<Clock className="w-5 h-5" />}
+              onClick={() => navigate('/app/history')}
+            />
+            <QuickActionCard
+              title="Kullanım Detayı"
+              description="Abonelik ve kullanım"
+              icon={<BarChart3 className="w-5 h-5" />}
+              onClick={() => navigate('/app/subscription')}
+            />
+          </div>
+        </div>
+
+        {/* Subscription Info */}
+        <div className="card p-6">
+          <h2 className="heading-4 mb-4">Abonelik Durumu</h2>
+          
+          <div className="space-y-4">
+            <div className="p-4 bg-primary-50 rounded-lg">
+              <div className="text-sm text-primary-600 mb-1">Aktif Plan</div>
+              <div className="text-lg font-semibold text-primary-800">
+                {loading ? '...' : plan?.name || 'Plan yok'}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <RemainingItem
+                label="Arama Hakkı"
+                value={remaining?.search}
+                loading={loading}
+              />
+              <RemainingItem
+                label="Analiz Hakkı"
+                value={remaining?.caseAnalysis}
+                loading={loading}
+              />
+              <RemainingItem
+                label="Dilekçe Hakkı"
+                value={remaining?.petition}
+                loading={loading}
+              />
+            </div>
+
+            <button
+              onClick={() => navigate('/app/subscription')}
+              className="btn-secondary w-full justify-center mt-4"
+            >
+              Planı Yönet
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Stat Card Component
+function StatCard({ title, value, icon }: { title: string; value: number | string; icon: React.ReactNode }) {
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm text-slate-500">{title}</div>
+          <div className="text-2xl font-bold text-slate-900 mt-1">{value}</div>
+        </div>
+        <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center text-primary-700">
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Quick Action Card Component
+function QuickActionCard({ 
+  title, 
+  description, 
+  icon, 
+  onClick,
+  primary = false 
+}: { 
+  title: string; 
+  description: string; 
+  icon: React.ReactNode; 
+  onClick: () => void;
+  primary?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`p-4 rounded-lg text-left transition-all group ${
+        primary 
+          ? 'bg-primary-50 hover:bg-primary-100' 
+          : 'bg-slate-50 hover:bg-slate-100'
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+          primary ? 'bg-primary-100 text-primary-700' : 'bg-white text-slate-600'
+        }`}>
+          {icon}
+        </div>
+        <div className="flex-1">
+          <div className={`font-medium ${primary ? 'text-primary-800' : 'text-slate-800'}`}>
+            {title}
+          </div>
+          <div className="text-sm text-slate-500 mt-0.5">{description}</div>
+        </div>
+        <ArrowRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity ${
+          primary ? 'text-primary-600' : 'text-slate-400'
+        }`} />
+      </div>
+    </button>
+  );
+}
+
+// Remaining Item Component
+function RemainingItem({ label, value, loading }: { label: string; value?: number; loading: boolean }) {
+  const displayValue = loading ? '...' : value === -1 ? '∞' : value ?? 0;
+  const isUnlimited = value === -1;
+  
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+      <span className="text-sm text-slate-600">{label}</span>
+      <span className={`text-sm font-medium ${isUnlimited ? 'text-success-600' : 'text-slate-900'}`}>
+        {displayValue}
+      </span>
     </div>
   );
 }
