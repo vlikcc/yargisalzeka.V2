@@ -108,10 +108,8 @@ public class ElasticsearchProvider : ISearchProvider
                 h.Source.EsasNo,
                 h.Source.KararNo,
                 h.Source.KararTarihi,
-                // Highlight varsa onu kullan, yoksa orijinal metin
-                h.Highlight?.ContainsKey("kararMetni") == true 
-                    ? string.Join("... ", h.Highlight["kararMetni"]) 
-                    : h.Source.KararMetni
+                // Her zaman tam metni döndür (frontend detay görüntüleme için gerekli)
+                h.Source.KararMetni
             )).ToList();
 
             return results;

@@ -55,10 +55,12 @@ export const ENDPOINTS = {
   SEARCH: {
     SEARCH: '/search',
     HISTORY: '/search/history',
-    SAVE_DECISION: '/search/save/{decisionId}'
+    SAVE_DECISION: '/search/save',
+    SAVED_DECISIONS: '/search/saved'
   },
   PETITION: {
     GENERATE: '/petition/generate',
-    HISTORY: '/petition/history'
+    HISTORY: '/petition/history',
+    DETAIL: '/petition'
   }
 };

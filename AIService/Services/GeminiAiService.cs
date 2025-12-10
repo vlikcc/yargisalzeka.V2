@@ -9,8 +9,8 @@ public class GeminiAiService : IGeminiAiService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<GeminiAiService> _logger;
     private readonly string _apiKey;
-    private const string FlashModel = "gemini-2.5-pro";
-    private const string ProModel = "gemini-2.5-pro";
+    private const string FlashModel = "gemini-3-pro-preview";
+    private const string ProModel = "gemini-3-pro-preview";
 
     public GeminiAiService(IConfiguration configuration, IHttpClientFactory httpClientFactory, ILogger<GeminiAiService> logger)
     {

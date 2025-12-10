@@ -23,6 +23,27 @@ import sys
 import json
 from datetime import datetime
 from typing import Generator, Dict, Any
+from pathlib import Path
+
+# .env dosyasını oku
+def load_env_file():
+    """Proje kök dizinindeki .env dosyasını oku"""
+    env_path = Path(__file__).parent.parent / '.env'
+    if env_path.exists():
+        print(f"📁 .env dosyası okunuyor: {env_path}")
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    if key not in os.environ:  # Mevcut env var'ları ezme
+                        os.environ[key] = value
+    else:
+        print(f"⚠ .env dosyası bulunamadı: {env_path}")
+
+load_env_file()
 
 try:
     import psycopg2
@@ -39,18 +60,23 @@ except ImportError:
     sys.exit(1)
 
 
-# Konfigürasyon
+# Konfigürasyon (.env dosyasından veya environment'tan okunur)
 POSTGRES_CONFIG = {
     "host": os.getenv("POSTGRES_HOST", "localhost"),
     "port": int(os.getenv("POSTGRES_PORT", "5432")),
-    "database": os.getenv("POSTGRES_DB", "yargitay_kararlari"),
+    "database": os.getenv("POSTGRES_DB", "yargisalzeka"),
     "user": os.getenv("POSTGRES_USER", "postgres"),
-    "password": os.getenv("POSTGRES_PASSWORD", "postgres"),
+    "password": os.getenv("POSTGRES_PASSWORD", ""),
 }
+
+# Şifre kontrolü
+if not POSTGRES_CONFIG["password"]:
+    print("❌ POSTGRES_PASSWORD tanımlı değil! .env dosyasını kontrol edin.")
+    sys.exit(1)
 
 ELASTICSEARCH_URL = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
 INDEX_NAME = os.getenv("ELASTICSEARCH_INDEX", "kararlar")
-BATCH_SIZE = 500
+BATCH_SIZE = 1000
 
 # Elasticsearch Index Mapping (Türkçe analyzer)
 INDEX_MAPPING = {

@@ -1,6 +1,5 @@
 import { httpClient } from './httpClient';
 import { ENDPOINTS } from '../config/api';
-import { } from './aiService';
 
 export interface SearchFilters { courts?: string[]; caseTypes?: string[]; dateRange?: { from?: string; to?: string }; }
 // Eski çok aşamalı arama kaldırıldı; sadece backend history ve save kullanılıyor.
@@ -27,10 +26,22 @@ export interface DecisionDto {
   relevanceSimilarity?: string | null;
 }
 
+// Kaydedilen karar
+export interface SavedDecisionItem {
+  decisionId: number;
+  savedAt: string;
+}
+
 // Backend'den gelen kapsamlı response
 // Artık Execute akışı yok; composite AI endpoint kullanılıyor.
 
 export const searchService = {
   getHistory: () => httpClient.get<SearchHistoryItem[]>(ENDPOINTS.SEARCH.HISTORY),
-  saveDecision: (payload: SaveDecisionRequest) => httpClient.post(ENDPOINTS.SEARCH.SAVE_DECISION, payload)
+  
+  // Kaydedilen kararlar
+  getSavedDecisions: () => httpClient.get<SavedDecisionItem[]>(ENDPOINTS.SEARCH.SAVED_DECISIONS),
+  
+  saveDecision: (decisionId: number) => httpClient.post(`${ENDPOINTS.SEARCH.SAVE_DECISION}/${decisionId}`, {}),
+  
+  removeDecision: (decisionId: number) => httpClient.delete(`${ENDPOINTS.SEARCH.SAVE_DECISION}/${decisionId}`)
 };

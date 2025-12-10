@@ -12,6 +12,7 @@ import SubscriptionPage from './pages/subscription/SubscriptionPage';
 import HistoryPage from './pages/history/HistoryPage';
 import ProfilePage from './pages/profile/ProfilePage';
 import PetitionHistoryPage from './pages/petition/PetitionHistoryPage';
+import SavedDecisionsPage from './pages/saved/SavedDecisionsPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
 import SystemMonitoring from './pages/admin/SystemMonitoring';
@@ -61,6 +62,7 @@ export default function App() {
                         <Route path="history" element={<HistoryPage />} />
                         <Route path="profile" element={<ProfilePage />} />
                         <Route path="petitions" element={<PetitionHistoryPage />} />
+                        <Route path="saved" element={<SavedDecisionsPage />} />
                       </Routes>
                     </AppLayout>
                   </SearchProvider>

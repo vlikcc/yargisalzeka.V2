@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchFlow } from '../../hooks/useSearch';
 import { PetitionGenerator } from '../../components/petition/PetitionGenerator';
-import { Search, Loader2, AlertCircle, FileText, Hash, ChevronDown, ChevronUp, Scale, Sparkles, Download, Bookmark, X, BookmarkCheck } from 'lucide-react';
-import { jsPDF } from 'jspdf';
-
-// Kaydedilen kararlar için localStorage key
-const SAVED_DECISIONS_KEY = 'yargisalzeka_saved_decisions';
+import { Search, Loader2, AlertCircle, FileText, Hash, ChevronDown, ChevronUp, Scale, Sparkles, Download, Bookmark, X, BookmarkCheck, Clock, History } from 'lucide-react';
+import JSZip from 'jszip';
+import { searchService } from '../../services/searchService';
 
 // HTML etiketlerini temizleme ve highlight yapma
 const sanitizeAndHighlight = (text: string) => {
@@ -15,115 +13,176 @@ const sanitizeAndHighlight = (text: string) => {
     .replace(/<\/mark>/g, '</span>');
 };
 
-// PDF oluşturma fonksiyonu
-const generatePDF = (decision: any) => {
-  const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 20;
-  const maxWidth = pageWidth - 2 * margin;
-  let yPos = 20;
-  
-  // Başlık
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('YARGITAY KARARI', pageWidth / 2, yPos, { align: 'center' });
-  yPos += 15;
-  
-  // Çizgi
-  doc.setLineWidth(0.5);
-  doc.line(margin, yPos, pageWidth - margin, yPos);
-  yPos += 10;
-  
-  // Karar Bilgileri
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Karar Bilgileri:', margin, yPos);
-  yPos += 8;
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  
-  const info = [
-    `Daire: ${decision.court || 'Belirtilmemis'}`,
-    `Karar No: ${decision.title || 'Belirtilmemis'}`,
-    `Karar Tarihi: ${decision.decisionDate ? new Date(decision.decisionDate).toLocaleDateString('tr-TR') : 'Belirtilmemis'}`,
-  ];
-  
-  info.forEach(line => {
-    doc.text(line, margin, yPos);
-    yPos += 6;
-  });
-  
-  yPos += 5;
-  
-  // Karar Metni
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text('Karar Metni:', margin, yPos);
-  yPos += 8;
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+// TXT olarak indirme fonksiyonu (Türkçe karakter desteği ile)
+const downloadAsTxt = (decision: any) => {
   const fullText = (decision.fullText || decision.excerpt || '').replace(/<[^>]*>/g, '');
-  const textLines = doc.splitTextToSize(fullText, maxWidth);
   
-  textLines.forEach((line: string) => {
-    if (yPos > 270) {
-      doc.addPage();
-      yPos = 20;
-    }
-    doc.text(line, margin, yPos);
-    yPos += 4.5;
-  });
+  const content = `YARGITAY KARARI
+════════════════════════════════════════════════════════════
+
+KARAR BİLGİLERİ
+────────────────────────────────────────────────────────────
+Daire: ${decision.court || 'Belirtilmemiş'}
+Karar No: ${decision.title || 'Belirtilmemiş'}
+Karar Tarihi: ${decision.decisionDate ? new Date(decision.decisionDate).toLocaleDateString('tr-TR') : 'Belirtilmemiş'}
+
+KARAR METNİ
+────────────────────────────────────────────────────────────
+${fullText}
+
+════════════════════════════════════════════════════════════
+İndirme Tarihi: ${new Date().toLocaleDateString('tr-TR')}
+Kaynak: Yargısal Zeka - yargisalzeka.com
+`;
+
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `yargitay_karari_${decision.id || 'unknown'}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+// DOCX olarak indirme (HTML tabanlı - Word tarafından açılabilir)
+const downloadAsDocx = (decision: any) => {
+  const fullText = (decision.fullText || decision.excerpt || '').replace(/<[^>]*>/g, '');
   
-  // Footer
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'italic');
-    doc.text(
-      `${new Date().toLocaleDateString('tr-TR')} - Sayfa ${i}/${pageCount}`,
-      pageWidth / 2,
-      285,
-      { align: 'center' }
-    );
-  }
+  // Word-compatible HTML oluştur
+  const htmlContent = `
+<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>Yargıtay Kararı</title>
+<style>
+  body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; margin: 2cm; }
+  h1 { font-size: 16pt; text-align: center; font-weight: bold; margin-bottom: 20pt; }
+  h2 { font-size: 14pt; font-weight: bold; margin-top: 20pt; margin-bottom: 10pt; border-bottom: 1px solid #000; padding-bottom: 5pt; }
+  .info { margin-bottom: 5pt; }
+  .info-label { font-weight: bold; }
+  .content { text-align: justify; white-space: pre-wrap; }
+  .footer { margin-top: 30pt; font-size: 10pt; color: #666; text-align: center; border-top: 1px solid #ccc; padding-top: 10pt; }
+</style>
+</head>
+<body>
+  <h1>YARGITAY KARARI</h1>
   
-  // PDF'i indir
-  doc.save(`yargitay_karari_${decision.id || 'unknown'}.pdf`);
+  <h2>KARAR BİLGİLERİ</h2>
+  <p class="info"><span class="info-label">Daire:</span> ${decision.court || 'Belirtilmemiş'}</p>
+  <p class="info"><span class="info-label">Karar No:</span> ${decision.title || 'Belirtilmemiş'}</p>
+  <p class="info"><span class="info-label">Karar Tarihi:</span> ${decision.decisionDate ? new Date(decision.decisionDate).toLocaleDateString('tr-TR') : 'Belirtilmemiş'}</p>
+  
+  <h2>KARAR METNİ</h2>
+  <div class="content">${fullText}</div>
+  
+  <div class="footer">
+    İndirme Tarihi: ${new Date().toLocaleDateString('tr-TR')}<br>
+    Kaynak: Yargısal Zeka - yargisalzeka.com
+  </div>
+</body>
+</html>`;
+
+  const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `yargitay_karari_${decision.id || 'unknown'}.doc`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
-// Karar kaydetme fonksiyonları
-const getSavedDecisions = (): any[] => {
-  try {
-    const saved = localStorage.getItem(SAVED_DECISIONS_KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch {
-    return [];
-  }
-};
+// UYAP UDF formatında indirme
+const downloadAsUdf = async (decision: any) => {
+  const fullText = (decision.fullText || decision.excerpt || '').replace(/<[^>]*>/g, '');
+  const court = decision.court || 'Belirtilmemiş';
+  const title = decision.title || 'Belirtilmemiş';
+  const date = decision.decisionDate ? new Date(decision.decisionDate).toLocaleDateString('tr-TR') : 'Belirtilmemiş';
+  const downloadDate = new Date().toLocaleDateString('tr-TR');
+  
+  // Tüm içerik metni (CDATA bloğu için)
+  const headerText = 'YARGITAY KARARI';
+  const infoText = `Daire: ${court}\nKarar No: ${title}\nKarar Tarihi: ${date}`;
+  const contentText = fullText;
+  const footerText = `İndirme Tarihi: ${downloadDate} - Yargısal Zeka`;
+  
+  const allContent = `${headerText}\n${infoText}\n${contentText}\n${footerText}`;
+  
+  // Offset hesaplamaları
+  let offset = 0;
+  const headerOffset = offset;
+  const headerLength = headerText.length;
+  offset += headerLength + 1;
+  
+  const infoOffset = offset;
+  const infoLength = infoText.length;
+  offset += infoLength + 1;
+  
+  const contentOffset = offset;
+  const contentLength = contentText.length;
+  offset += contentLength + 1;
+  
+  const footerOffset = offset;
+  const footerLength = footerText.length;
 
-const saveDecision = (decision: any) => {
-  const saved = getSavedDecisions();
-  if (!saved.find((d: any) => d.id === decision.id)) {
-    saved.push({
-      ...decision,
-      savedAt: new Date().toISOString()
-    });
-    localStorage.setItem(SAVED_DECISIONS_KEY, JSON.stringify(saved));
-  }
-};
+  // UDF content.xml oluştur
+  const contentXml = `<?xml version="1.0" encoding="UTF-8"?>
+<template format_id="1.8" description="Yargıtay Kararı" isTemplate="false">
+  <content><![CDATA[${allContent}]]></content>
+  
+  <properties>
+    <pageFormat mediaSizeName="A4" leftMargin="70.86" rightMargin="70.86" topMargin="56.69" bottomMargin="56.69" paperOrientation="portrait" headerFOffset="30.0" footerFOffset="30.0" />
+  </properties>
+  
+  <styles>
+    <style name="default" description="Varsayılan" family="Times New Roman" size="12" bold="false" italic="false" foreground="-16777216" />
+    <style name="baslik" parent="default" size="16" bold="true" foreground="-16777216" />
+    <style name="altbaslik" parent="default" size="12" bold="true" foreground="-16777216" />
+    <style name="icerik" parent="default" size="11" bold="false" foreground="-16777216" />
+    <style name="footer" parent="default" size="9" italic="true" foreground="-8421505" />
+  </styles>
+  
+  <elements resolver="default">
+    <header background="-1" foreground="-16777216">
+      <paragraph Alignment="1">
+        <content family="Times New Roman" size="16" bold="true" startOffset="${headerOffset}" length="${headerLength}" style="baslik" />
+      </paragraph>
+    </header>
+    
+    <paragraph Alignment="0" SpaceBefore="12.0" SpaceAfter="6.0">
+      <content family="Times New Roman" size="12" bold="true" startOffset="${infoOffset}" length="${infoLength}" style="altbaslik" />
+    </paragraph>
+    
+    <paragraph Alignment="3" SpaceBefore="12.0" LineSpacing="1.5">
+      <content family="Times New Roman" size="11" startOffset="${contentOffset}" length="${contentLength}" style="icerik" />
+    </paragraph>
+    
+    <footer background="-1" foreground="-8421505">
+      <paragraph Alignment="1">
+        <content family="Times New Roman" size="9" italic="true" startOffset="${footerOffset}" length="${footerLength}" style="footer" />
+      </paragraph>
+    </footer>
+  </elements>
+</template>`;
 
-const removeDecision = (decisionId: number) => {
-  const saved = getSavedDecisions();
-  const filtered = saved.filter((d: any) => d.id !== decisionId);
-  localStorage.setItem(SAVED_DECISIONS_KEY, JSON.stringify(filtered));
-};
-
-const isDecisionSaved = (decisionId: number): boolean => {
-  const saved = getSavedDecisions();
-  return saved.some((d: any) => d.id === decisionId);
+  // ZIP oluştur
+  const zip = new JSZip();
+  zip.file('content.xml', contentXml);
+  
+  // ZIP'i blob olarak al ve indir
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `yargitay_karari_${decision.id || 'unknown'}.udf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
 export default function SearchPage() {
@@ -131,18 +190,28 @@ export default function SearchPage() {
   const [expandedDecision, setExpandedDecision] = useState<number | null>(null);
   const [selectedDecision, setSelectedDecision] = useState<any | null>(null);
   const [savedDecisionIds, setSavedDecisionIds] = useState<Set<number>>(new Set());
-  const { runSearch, result, isSearching, error, loadHistory } = useSearchFlow();
+  const [showHistory, setShowHistory] = useState(false);
+  const [savingDecisionId, setSavingDecisionId] = useState<number | null>(null);
+  const { runSearch, result, isSearching, error, loadHistory, history } = useSearchFlow();
   
   const wordCount = text.trim().split(/\s+/).filter(w => w.length > 0).length;
   const maxWords = 300;
   const isOverLimit = wordCount > maxWords;
 
+  // Kaydedilen kararları API'den yükle
+  const loadSavedDecisions = useCallback(async () => {
+    try {
+      const saved = await searchService.getSavedDecisions();
+      setSavedDecisionIds(new Set(saved.map(d => d.decisionId)));
+    } catch {
+      // Hata durumunda sessizce devam et
+    }
+  }, []);
+
   useEffect(() => { 
     loadHistory(); 
-    // Kaydedilen kararları yükle
-    const saved = getSavedDecisions();
-    setSavedDecisionIds(new Set(saved.map((d: any) => d.id)));
-  }, [loadHistory]);
+    loadSavedDecisions();
+  }, [loadHistory, loadSavedDecisions]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,17 +219,24 @@ export default function SearchPage() {
     runSearch({ caseText: text });
   };
 
-  const handleSaveToggle = (decision: any) => {
-    if (savedDecisionIds.has(decision.id)) {
-      removeDecision(decision.id);
-      setSavedDecisionIds(prev => {
-        const next = new Set(prev);
-        next.delete(decision.id);
-        return next;
-      });
-    } else {
-      saveDecision(decision);
-      setSavedDecisionIds(prev => new Set(prev).add(decision.id));
+  const handleSaveToggle = async (decision: any) => {
+    setSavingDecisionId(decision.id);
+    try {
+      if (savedDecisionIds.has(decision.id)) {
+        await searchService.removeDecision(decision.id);
+        setSavedDecisionIds(prev => {
+          const next = new Set(prev);
+          next.delete(decision.id);
+          return next;
+        });
+      } else {
+        await searchService.saveDecision(decision.id);
+        setSavedDecisionIds(prev => new Set(prev).add(decision.id));
+      }
+    } catch (err) {
+      console.error('Karar kaydetme/silme hatası:', err);
+    } finally {
+      setSavingDecisionId(null);
     }
   };
 
@@ -405,13 +481,38 @@ export default function SearchPage() {
                           )}
                         </button>
                         
-                        <button
-                          onClick={() => generatePDF(decision)}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
-                        >
-                          <Download className="w-4 h-4" />
-                          İndir
-                        </button>
+                        <div className="relative group">
+                          <button
+                            className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+                          >
+                            <Download className="w-4 h-4" />
+                            İndir
+                            <ChevronDown className="w-3 h-3 ml-1" />
+                          </button>
+                          <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-slate-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                            <button
+                              onClick={() => downloadAsTxt(decision)}
+                              className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            >
+                              <FileText className="w-4 h-4" />
+                              TXT olarak
+                            </button>
+                            <button
+                              onClick={() => downloadAsDocx(decision)}
+                              className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            >
+                              <FileText className="w-4 h-4" />
+                              Word (.doc)
+                            </button>
+                            <button
+                              onClick={() => downloadAsUdf(decision)}
+                              className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            >
+                              <Scale className="w-4 h-4" />
+                              UYAP (.udf)
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -435,18 +536,83 @@ export default function SearchPage() {
           </div>
         )}
 
-      {/* Empty State */}
+      {/* Empty State with Search History */}
       {!isSearching && !result && (
-        <div className="card p-12 text-center">
-          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Search className="w-8 h-8 text-slate-400" />
+        <div className="space-y-6">
+          <div className="card p-12 text-center">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Search className="w-8 h-8 text-slate-400" />
             </div>
-          <h3 className="font-semibold text-slate-900 mb-2">Aramaya Başlayın</h3>
-          <p className="text-sm text-slate-500 max-w-md mx-auto">
-            Hukuki olayınızı yukarıdaki alana yazın ve yapay zeka destekli analizden yararlanın.
+            <h3 className="font-semibold text-slate-900 mb-2">Aramaya Başlayın</h3>
+            <p className="text-sm text-slate-500 max-w-md mx-auto">
+              Hukuki olayınızı yukarıdaki alana yazın ve yapay zeka destekli analizden yararlanın.
             </p>
           </div>
-        )}
+          
+          {/* Search History */}
+          {history && history.length > 0 && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <History className="w-5 h-5 text-slate-500" />
+                  <h3 className="font-semibold text-slate-900">Son Aramalarınız</h3>
+                </div>
+                <button
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  {showHistory ? 'Gizle' : `Tümünü Gör (${history.length})`}
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                {(showHistory ? history : history.slice(0, 5)).map((item) => (
+                  <div 
+                    key={item.id}
+                    className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="flex flex-wrap gap-1.5 mb-1">
+                        {item.keywords.slice(0, 5).map((keyword, idx) => (
+                          <span 
+                            key={idx}
+                            className="px-2 py-0.5 bg-primary-100 text-primary-700 text-xs rounded-full"
+                          >
+                            {keyword}
+                          </span>
+                        ))}
+                        {item.keywords.length > 5 && (
+                          <span className="px-2 py-0.5 bg-slate-200 text-slate-600 text-xs rounded-full">
+                            +{item.keywords.length - 5}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(item.createdAt).toLocaleDateString('tr-TR', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                        <span>{item.resultCount} sonuç</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setText(item.keywords.join(', '))}
+                      className="ml-3 px-3 py-1.5 text-sm font-medium text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                    >
+                      Tekrar Ara
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
         
       {/* Full Text Modal */}
       {selectedDecision && (
@@ -519,13 +685,38 @@ export default function SearchPage() {
                 )}
               </button>
               
-              <button
-                onClick={() => generatePDF(selectedDecision)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                PDF İndir
-              </button>
+              <div className="relative group">
+                <button
+                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  İndir
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                <div className="absolute right-0 bottom-full mb-1 w-40 bg-white rounded-lg shadow-lg border border-slate-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                  <button
+                    onClick={() => downloadAsTxt(selectedDecision)}
+                    className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <FileText className="w-4 h-4" />
+                    TXT olarak
+                  </button>
+                  <button
+                    onClick={() => downloadAsDocx(selectedDecision)}
+                    className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Word (.doc)
+                  </button>
+                  <button
+                    onClick={() => downloadAsUdf(selectedDecision)}
+                    className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <Scale className="w-4 h-4" />
+                    UYAP (.udf)
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           </div>

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { petitionService, PetitionResponse } from '../../services/petitionService';
 import { useAsyncOperation } from '../../hooks/useAsyncOperation';
 import { useSubscription } from '../../contexts/SubscriptionContext';
-import { FileText, AlertCircle, Copy, Download, Check, Loader2 } from 'lucide-react';
+import { FileText, AlertCircle, Copy, Download, Check, Loader2, ChevronDown, Scale } from 'lucide-react';
+import JSZip from 'jszip';
 
 export interface CompositeSearchResponse {
   analysis: string;
@@ -65,6 +66,118 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
     const a = document.createElement('a');
     a.href = url;
     a.download = `dilekce-${data.id || 'taslak'}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadAsDoc = () => {
+    if (!data?.content) return;
+    
+    // Word-compatible HTML oluştur
+    const htmlContent = `
+<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>Dilekçe - ${data.topic || 'Hukuki Dilekçe'}</title>
+<style>
+  body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.6; margin: 2cm; }
+  h1 { font-size: 14pt; text-align: center; font-weight: bold; margin-bottom: 24pt; text-transform: uppercase; }
+  .content { white-space: pre-wrap; text-align: justify; }
+  .footer { margin-top: 30pt; font-size: 10pt; color: #666; text-align: center; border-top: 1px solid #ccc; padding-top: 10pt; }
+</style>
+</head>
+<body>
+  <h1>${data.topic || 'DİLEKÇE'}</h1>
+  <div class="content">${data.content.replace(/\n/g, '<br>')}</div>
+  <div class="footer">
+    Oluşturma Tarihi: ${new Date(data.createdAt).toLocaleDateString('tr-TR')}<br>
+    Kaynak: Yargısal Zeka - yargisalzeka.com
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dilekce-${data.id || 'taslak'}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadAsUdf = async () => {
+    if (!data?.content) return;
+    
+    const topic = data.topic || 'Hukuki Dilekçe';
+    const content = data.content;
+    const createdAt = new Date(data.createdAt).toLocaleDateString('tr-TR');
+    const footerText = `Oluşturma Tarihi: ${createdAt} - Yargısal Zeka`;
+    
+    const allContent = `${topic}\n${content}\n${footerText}`;
+    
+    // Offset hesaplamaları
+    let offset = 0;
+    const topicOffset = offset;
+    const topicLength = topic.length;
+    offset += topicLength + 1;
+    
+    const contentOffset = offset;
+    const contentLength = content.length;
+    offset += contentLength + 1;
+    
+    const footerOffset = offset;
+    const footerLength = footerText.length;
+
+    // UDF content.xml oluştur
+    const contentXml = `<?xml version="1.0" encoding="UTF-8"?>
+<template format_id="1.8" description="Dilekçe Taslağı" isTemplate="false">
+  <content><![CDATA[${allContent}]]></content>
+  
+  <properties>
+    <pageFormat mediaSizeName="A4" leftMargin="70.86" rightMargin="70.86" topMargin="56.69" bottomMargin="56.69" paperOrientation="portrait" headerFOffset="30.0" footerFOffset="30.0" />
+  </properties>
+  
+  <styles>
+    <style name="default" description="Varsayılan" family="Times New Roman" size="12" bold="false" italic="false" foreground="-16777216" />
+    <style name="baslik" parent="default" size="14" bold="true" foreground="-16777216" />
+    <style name="icerik" parent="default" size="12" bold="false" foreground="-16777216" />
+    <style name="footer" parent="default" size="9" italic="true" foreground="-8421505" />
+  </styles>
+  
+  <elements resolver="default">
+    <header background="-1" foreground="-16777216">
+      <paragraph Alignment="1">
+        <content family="Times New Roman" size="14" bold="true" startOffset="${topicOffset}" length="${topicLength}" style="baslik" />
+      </paragraph>
+    </header>
+    
+    <paragraph Alignment="3" SpaceBefore="12.0" LineSpacing="1.5">
+      <content family="Times New Roman" size="12" startOffset="${contentOffset}" length="${contentLength}" style="icerik" />
+    </paragraph>
+    
+    <footer background="-1" foreground="-8421505">
+      <paragraph Alignment="1">
+        <content family="Times New Roman" size="9" italic="true" startOffset="${footerOffset}" length="${footerLength}" style="footer" />
+      </paragraph>
+    </footer>
+  </elements>
+</template>`;
+
+    // ZIP oluştur
+    const zip = new JSZip();
+    zip.file('content.xml', contentXml);
+    
+    // ZIP'i blob olarak al ve indir
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dilekce-${data.id || 'taslak'}.udf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -175,13 +288,36 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
               </>
             )}
           </button>
-          <button
-            onClick={downloadAsTxt}
-            className="btn-ghost btn-sm"
-          >
-            <Download className="w-4 h-4 mr-1" />
-            İndir
-          </button>
+          <div className="relative group">
+            <button className="btn-ghost btn-sm">
+              <Download className="w-4 h-4 mr-1" />
+              İndir
+              <ChevronDown className="w-3 h-3 ml-1" />
+            </button>
+            <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-slate-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+              <button
+                onClick={downloadAsTxt}
+                className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                TXT olarak
+              </button>
+              <button
+                onClick={downloadAsDoc}
+                className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                Word (.doc)
+              </button>
+              <button
+                onClick={downloadAsUdf}
+                className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+              >
+                <Scale className="w-4 h-4" />
+                UYAP (.udf)
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

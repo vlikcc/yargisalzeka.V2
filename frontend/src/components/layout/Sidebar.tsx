@@ -9,13 +9,15 @@ import {
   Shield,
   Users,
   Activity,
-  Scale
+  Scale,
+  Bookmark
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 const navItems = [
   { to: '/app', label: 'Ana Sayfa', icon: Home },
   { to: '/app/search', label: 'Arama', icon: Search },
+  { to: '/app/saved', label: 'Kaydedilenler', icon: Bookmark },
   { to: '/app/petitions', label: 'Dilekçeler', icon: FileText },
   { to: '/app/history', label: 'Geçmiş', icon: History },
   { to: '/app/subscription', label: 'Abonelik', icon: CreditCard },
