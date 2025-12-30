@@ -9,7 +9,7 @@ export default function HistoryPage() {
   const { history, loadHistory } = useSearch();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const handleLoadHistory = async () => {
     setLoading(true);
     setError(null);
@@ -22,11 +22,11 @@ export default function HistoryPage() {
       setLoading(false);
     }
   };
-  
+
   useEffect(() => {
     void handleLoadHistory();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -41,10 +41,10 @@ export default function HistoryPage() {
               <p className="text-sm text-neutral-500">Daha önce yaptığınız arama sonuçları</p>
             </div>
           </div>
-          <Button 
-            onClick={handleLoadHistory} 
-            variant="outline" 
-            size="sm" 
+          <Button
+            onClick={handleLoadHistory}
+            variant="outline"
+            size="sm"
             className="font-medium"
             disabled={loading}
           >
@@ -62,7 +62,7 @@ export default function HistoryPage() {
           </Button>
         </div>
       </div>
-      
+
       {/* Content */}
       <div className="space-y-4">
         {loading && history.length === 0 && (
@@ -70,16 +70,16 @@ export default function HistoryPage() {
             <LoadingState message="Geçmiş aramalar yükleniyor..." />
           </div>
         )}
-        
+
         {error && (
           <div className="glass-card animate-slide-up">
-            <ErrorState 
-              description={error} 
+            <ErrorState
+              description={error}
               onRetry={handleLoadHistory}
             />
           </div>
         )}
-        
+
         {!loading && !error && history.length === 0 && (
           <div className="glass-card text-center py-12 animate-fade-in">
             <div className="w-20 h-20 bg-neutral-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
@@ -91,7 +91,7 @@ export default function HistoryPage() {
             <p className="text-sm text-neutral-500 max-w-md mx-auto mb-4">
               İlk arama işleminizi gerçekleştirin, sonuçlar burada görüntülenecek.
             </p>
-            <Button 
+            <Button
               onClick={() => window.location.href = '/app/search'}
               className="btn-primary"
             >
@@ -100,12 +100,12 @@ export default function HistoryPage() {
             </Button>
           </div>
         )}
-        
+
         {/* History Items */}
         <div className="grid gap-4">
           {history.map((h, index) => (
-            <div 
-              key={h.id} 
+            <div
+              key={h.id}
               className="card hover-lift animate-slide-up"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
@@ -116,61 +116,51 @@ export default function HistoryPage() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-neutral-900 line-clamp-2">
-                      {h.title || `Arama #${h.id}`}
+                      {/* Backend only returns keywords, so use them as title */}
+                      {h.keywords && h.keywords.length > 0
+                        ? h.keywords.join(', ')
+                        : `Arama #${h.id}`}
                     </h3>
                     <p className="text-sm text-neutral-500">Arama ID: {h.id}</p>
                   </div>
                 </div>
-                {h.score !== undefined && h.score > 0 && (
-                  <span className="px-2.5 py-1 bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 text-xs font-semibold rounded-full">
-                    Skor: {h.score}
-                  </span>
-                )}
+                {/* resultCount backendden geliyor */}
+                <span className="px-2.5 py-1 bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 text-xs font-semibold rounded-full">
+                  {h.resultCount} Sonuç
+                </span>
               </div>
-              
-              {h.summary && (
-                <div className="bg-neutral-50/50 rounded-xl p-3">
-                  <p className="text-sm text-neutral-700 leading-relaxed line-clamp-3">
-                    {h.summary}
-                  </p>
-                </div>
-              )}
-              
+
               <div className="flex items-center justify-between mt-4 pt-3 border-t border-neutral-200/50">
                 <div className="flex items-center space-x-4 text-xs text-neutral-500">
                   <div className="flex items-center space-x-1">
                     <Calendar className="w-3 h-3" />
                     <span>
-                      {h.createdAt 
+                      {h.createdAt
                         ? new Date(h.createdAt).toLocaleDateString('tr-TR', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
                         : 'Tarih bilinmiyor'
                       }
                     </span>
                   </div>
-                  {h.court && (
-                    <div className="flex items-center space-x-1">
-                      <Hash className="w-3 h-3" />
-                      <span>{h.court}</span>
-                    </div>
-                  )}
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="text-primary-600 hover:text-primary-700"
                   onClick={() => {
-                    // TODO: Modal aç veya detay sayfasına yönlendir
-                    alert(`Arama #${h.id} detayları:\n\n${h.summary}`);
+                    // Aramayı tekrar et (Search sayfasına yönlendir)
+                    // URL params ile text gönderebiliriz veya context set edebiliriz
+                    // Şimdilik sadece alert
+                    window.location.href = `/app/search?q=${encodeURIComponent(h.keywords.join(' '))}`;
                   }}
                 >
-                  <Eye className="w-3 h-3 mr-1" />
-                  Detayı Gör
+                  <SearchIcon className="w-3 h-3 mr-1" />
+                  Tekrar Ara
                 </Button>
               </div>
             </div>

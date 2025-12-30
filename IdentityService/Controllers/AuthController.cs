@@ -2,11 +2,13 @@
 using System.Security.Claims;
 using System.Text;
 using IdentityService.Entities;
+using IdentityService.DbContexts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.EntityFrameworkCore;
 using System.Net.Http.Json;
 
 namespace IdentityService.Controllers
@@ -19,20 +21,22 @@ namespace IdentityService.Controllers
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IConfiguration _configuration;
         private readonly ILogger<AuthController> _logger;
-
-    private readonly IHttpClientFactory _factory;
+        private readonly IHttpClientFactory _factory;
+        private readonly IdentitiyDbContext _dbContext;
 
         public AuthController(UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             IConfiguration configuration,
             ILogger<AuthController> logger,
-            IHttpClientFactory factory)
+            IHttpClientFactory factory,
+            IdentitiyDbContext dbContext)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _configuration = configuration;
             _logger = logger;
             _factory = factory;
+            _dbContext = dbContext;
         }
 
         [HttpPost("register")]
@@ -101,26 +105,81 @@ namespace IdentityService.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var user = await _userManager.FindByEmailAsync(request.Email);
-            if (user == null)
+            try
             {
-                _logger.LogWarning("Geçersiz giriş denemesi (kullanıcı bulunamadı): {Email}", request.Email);
-                return Unauthorized(new { Mesaj = "Geçersiz kimlik bilgileri" });
-            }
+                if (!ModelState.IsValid)
+                    return BadRequest(ModelState);
 
-            var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: false);
-            if (!result.Succeeded)
+                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+                var userAgent = Request.Headers["User-Agent"].ToString();
+
+                var user = await _userManager.FindByEmailAsync(request.Email);
+                if (user == null)
+                {
+                    _logger.LogWarning("Geçersiz giriş denemesi (kullanıcı bulunamadı): {Email}", request.Email);
+                    
+                    // Başarısız giriş logu
+                    await LogLoginAttempt(null, request.Email, false, "Kullanıcı bulunamadı", ipAddress, userAgent);
+                    
+                    return Unauthorized(new { Mesaj = "Kullanıcı bulunamadı" });
+                }
+
+                var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: false);
+                if (!result.Succeeded)
+                {
+                    string failureReason = "Hatalı şifre";
+                    if (result.IsLockedOut) failureReason = "Hesap kilitli";
+                    else if (result.IsNotAllowed) failureReason = "Giriş izni yok (Email onayı vb. gerekebilir)";
+                    else if (result.RequiresTwoFactor) failureReason = "2FA gerekli";
+
+                    _logger.LogWarning("Geçersiz giriş denemesi ({Reason}): {Email}", failureReason, request.Email);
+                    
+                    // Başarısız giriş logu
+                    await LogLoginAttempt(user.Id, request.Email, false, failureReason, ipAddress, userAgent);
+                    
+                    return Unauthorized(new { Mesaj = $"Giriş başarısız: {failureReason}" });
+                }
+
+                // Başarılı giriş logu
+                await LogLoginAttempt(user.Id, request.Email, true, null, ipAddress, userAgent);
+                
+                // LastLoginAt güncelle
+                user.LastLoginAt = DateTime.UtcNow;
+                await _userManager.UpdateAsync(user);
+
+                _logger.LogInformation("Kullanıcı giriş yaptı: {Email}", request.Email);
+                var token = GenerateJwtToken(user);
+                return Ok(new AuthResponse { Token = token.Token, ExpiresAtUtc = token.ExpiresAtUtc });
+            }
+            catch (Exception ex)
             {
-                _logger.LogWarning("Geçersiz giriş denemesi (şifre hatalı): {Email}", request.Email);
-                return Unauthorized(new { Mesaj = "Geçersiz kimlik bilgileri" });
+                _logger.LogError(ex, "Login exception: {Message}", ex.Message);
+                var innerMessage = ex.InnerException?.Message ?? "No inner exception";
+                return StatusCode(500, new { Message = "Sunucu Hatası: " + ex.Message, InnerException = innerMessage, Detail = ex.StackTrace });
             }
+        }
 
-            _logger.LogInformation("Kullanıcı giriş yaptı: {Email}", request.Email);
-            var token = GenerateJwtToken(user);
-            return Ok(new AuthResponse { Token = token.Token, ExpiresAtUtc = token.ExpiresAtUtc });
+        private async Task LogLoginAttempt(string? userId, string email, bool isSuccess, string? failureReason, string? ipAddress, string? userAgent)
+        {
+            try
+            {
+                var log = new LoginLog
+                {
+                    UserId = userId ?? string.Empty,
+                    Email = email,
+                    IsSuccess = isSuccess,
+                    FailureReason = failureReason,
+                    IpAddress = ipAddress,
+                    UserAgent = userAgent,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _dbContext.LoginLogs.Add(log);
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Giriş logu kaydedilemedi");
+            }
         }
 
         [HttpPost("change-password")]
@@ -224,7 +283,7 @@ namespace IdentityService.Controllers
 
         [HttpGet("admin-stats")]
         [Authorize(Roles = "Admin,SuperAdmin")]
-    public IActionResult GetAdminStats()
+        public IActionResult GetAdminStats()
         {
             var totalUsers = _userManager.Users.Count();
             var activeUsers = _userManager.Users.Count(u => u.IsActive);
@@ -239,6 +298,240 @@ namespace IdentityService.Controllers
                 RecentUsers = recentUsers,
                 InactiveUsers = totalUsers - activeUsers
             });
+        }
+
+        // Giriş logları
+        [HttpGet("login-logs")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> GetLoginLogs([FromQuery] int take = 100, [FromQuery] int skip = 0, [FromQuery] bool? success = null)
+        {
+            take = Math.Clamp(take, 1, 500);
+            
+            var query = _dbContext.LoginLogs.AsQueryable();
+            
+            if (success.HasValue)
+            {
+                query = query.Where(l => l.IsSuccess == success.Value);
+            }
+            
+            var logs = await query
+                .OrderByDescending(l => l.CreatedAt)
+                .Skip(skip)
+                .Take(take)
+                .Select(l => new LoginLogDto
+                {
+                    Id = l.Id,
+                    UserId = l.UserId,
+                    Email = l.Email,
+                    IsSuccess = l.IsSuccess,
+                    FailureReason = l.FailureReason,
+                    IpAddress = l.IpAddress,
+                    UserAgent = l.UserAgent,
+                    CreatedAt = l.CreatedAt
+                })
+                .ToListAsync();
+            
+            var totalCount = await query.CountAsync();
+            
+            return Ok(new { logs, totalCount });
+        }
+
+        // Giriş istatistikleri
+        [HttpGet("login-stats")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> GetLoginStats([FromQuery] int days = 30)
+        {
+            days = Math.Clamp(days, 1, 365);
+            var startDate = DateTime.UtcNow.AddDays(-days);
+            
+            var totalAttempts = await _dbContext.LoginLogs.CountAsync(l => l.CreatedAt >= startDate);
+            var successfulLogins = await _dbContext.LoginLogs.CountAsync(l => l.CreatedAt >= startDate && l.IsSuccess);
+            var failedLogins = totalAttempts - successfulLogins;
+            
+            // Günlük giriş sayıları
+            var dailyLogins = await _dbContext.LoginLogs
+                .Where(l => l.CreatedAt >= startDate)
+                .GroupBy(l => new { l.CreatedAt.Date, l.IsSuccess })
+                .Select(g => new { Date = g.Key.Date, IsSuccess = g.Key.IsSuccess, Count = g.Count() })
+                .ToListAsync();
+            
+            var dailyStats = dailyLogins
+                .GroupBy(d => d.Date)
+                .Select(g => new DailyLoginStats
+                {
+                    Date = g.Key,
+                    SuccessCount = g.Where(x => x.IsSuccess).Sum(x => x.Count),
+                    FailCount = g.Where(x => !x.IsSuccess).Sum(x => x.Count)
+                })
+                .OrderBy(d => d.Date)
+                .ToList();
+            
+            // Başarısız giriş nedenleri
+            var failureReasons = await _dbContext.LoginLogs
+                .Where(l => l.CreatedAt >= startDate && !l.IsSuccess && l.FailureReason != null)
+                .GroupBy(l => l.FailureReason)
+                .Select(g => new { Reason = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .Take(10)
+                .ToListAsync();
+            
+            // Şüpheli aktivite: Aynı IP'den çok fazla başarısız giriş
+            var suspiciousIps = await _dbContext.LoginLogs
+                .Where(l => l.CreatedAt >= startDate && !l.IsSuccess && l.IpAddress != null)
+                .GroupBy(l => l.IpAddress)
+                .Select(g => new { IpAddress = g.Key, FailCount = g.Count() })
+                .Where(x => x.FailCount >= 5)
+                .OrderByDescending(x => x.FailCount)
+                .Take(10)
+                .ToListAsync();
+            
+            return Ok(new
+            {
+                totalAttempts,
+                successfulLogins,
+                failedLogins,
+                successRate = totalAttempts > 0 ? Math.Round((double)successfulLogins / totalAttempts * 100, 1) : 0,
+                dailyStats,
+                failureReasons,
+                suspiciousIps
+            });
+        }
+
+        // Duyurular - Herkese açık (aktif olanlar)
+        [HttpGet("announcements")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetActiveAnnouncements()
+        {
+            var now = DateTime.UtcNow;
+            var announcements = await _dbContext.Announcements
+                .Where(a => a.IsActive && 
+                           (a.StartDate == null || a.StartDate <= now) &&
+                           (a.EndDate == null || a.EndDate >= now))
+                .OrderByDescending(a => a.CreatedAt)
+                .Take(10)
+                .Select(a => new AnnouncementDto
+                {
+                    Id = a.Id,
+                    Title = a.Title,
+                    Content = a.Content,
+                    Type = a.Type,
+                    IsActive = a.IsActive,
+                    ShowOnDashboard = a.ShowOnDashboard,
+                    StartDate = a.StartDate,
+                    EndDate = a.EndDate,
+                    CreatedAt = a.CreatedAt
+                })
+                .ToListAsync();
+            
+            return Ok(announcements);
+        }
+
+        // Admin - Tüm duyurular
+        [HttpGet("admin/announcements")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> GetAllAnnouncements()
+        {
+            var announcements = await _dbContext.Announcements
+                .OrderByDescending(a => a.CreatedAt)
+                .Select(a => new AnnouncementDto
+                {
+                    Id = a.Id,
+                    Title = a.Title,
+                    Content = a.Content,
+                    Type = a.Type,
+                    IsActive = a.IsActive,
+                    ShowOnDashboard = a.ShowOnDashboard,
+                    StartDate = a.StartDate,
+                    EndDate = a.EndDate,
+                    CreatedAt = a.CreatedAt
+                })
+                .ToListAsync();
+            
+            return Ok(announcements);
+        }
+
+        // Admin - Duyuru oluştur
+        [HttpPost("admin/announcements")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> CreateAnnouncement([FromBody] CreateAnnouncementRequest request)
+        {
+            var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            
+            var announcement = new Announcement
+            {
+                Title = request.Title,
+                Content = request.Content,
+                Type = request.Type,
+                ShowOnDashboard = request.ShowOnDashboard,
+                StartDate = request.StartDate,
+                EndDate = request.EndDate,
+                IsActive = true,
+                CreatedBy = userId ?? string.Empty,
+                CreatedAt = DateTime.UtcNow
+            };
+            
+            _dbContext.Announcements.Add(announcement);
+            await _dbContext.SaveChangesAsync();
+            
+            _logger.LogInformation("Yeni duyuru oluşturuldu: {Title}", request.Title);
+            return Ok(new { Id = announcement.Id, Message = "Duyuru başarıyla oluşturuldu" });
+        }
+
+        // Admin - Duyuru güncelle
+        [HttpPut("admin/announcements/{id}")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> UpdateAnnouncement(long id, [FromBody] CreateAnnouncementRequest request)
+        {
+            var announcement = await _dbContext.Announcements.FindAsync(id);
+            if (announcement == null)
+                return NotFound(new { Message = "Duyuru bulunamadı" });
+            
+            announcement.Title = request.Title;
+            announcement.Content = request.Content;
+            announcement.Type = request.Type;
+            announcement.ShowOnDashboard = request.ShowOnDashboard;
+            announcement.StartDate = request.StartDate;
+            announcement.EndDate = request.EndDate;
+            announcement.UpdatedAt = DateTime.UtcNow;
+            
+            await _dbContext.SaveChangesAsync();
+            
+            _logger.LogInformation("Duyuru güncellendi: {Id}", id);
+            return Ok(new { Message = "Duyuru başarıyla güncellendi" });
+        }
+
+        // Admin - Duyuru aktif/pasif yap
+        [HttpPut("admin/announcements/{id}/toggle")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> ToggleAnnouncement(long id)
+        {
+            var announcement = await _dbContext.Announcements.FindAsync(id);
+            if (announcement == null)
+                return NotFound(new { Message = "Duyuru bulunamadı" });
+            
+            announcement.IsActive = !announcement.IsActive;
+            announcement.UpdatedAt = DateTime.UtcNow;
+            
+            await _dbContext.SaveChangesAsync();
+            
+            _logger.LogInformation("Duyuru durumu değiştirildi: {Id} -> {Status}", id, announcement.IsActive);
+            return Ok(new { Message = $"Duyuru {(announcement.IsActive ? "aktif" : "pasif")} hale getirildi" });
+        }
+
+        // Admin - Duyuru sil
+        [HttpDelete("admin/announcements/{id}")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> DeleteAnnouncement(long id)
+        {
+            var announcement = await _dbContext.Announcements.FindAsync(id);
+            if (announcement == null)
+                return NotFound(new { Message = "Duyuru bulunamadı" });
+            
+            _dbContext.Announcements.Remove(announcement);
+            await _dbContext.SaveChangesAsync();
+            
+            _logger.LogInformation("Duyuru silindi: {Id}", id);
+            return Ok(new { Message = "Duyuru başarıyla silindi" });
         }
 
         // Create first admin user (for initial setup)
@@ -357,5 +650,47 @@ namespace IdentityService.Controllers
         public string Password { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
+    }
+
+    public class LoginLogDto
+    {
+        public long Id { get; set; }
+        public string UserId { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public bool IsSuccess { get; set; }
+        public string? FailureReason { get; set; }
+        public string? IpAddress { get; set; }
+        public string? UserAgent { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class DailyLoginStats
+    {
+        public DateTime Date { get; set; }
+        public int SuccessCount { get; set; }
+        public int FailCount { get; set; }
+    }
+
+    public class AnnouncementDto
+    {
+        public long Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public string Type { get; set; } = "info";
+        public bool IsActive { get; set; }
+        public bool ShowOnDashboard { get; set; }
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class CreateAnnouncementRequest
+    {
+        public string Title { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public string Type { get; set; } = "info";
+        public bool ShowOnDashboard { get; set; } = true;
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
     }
 }

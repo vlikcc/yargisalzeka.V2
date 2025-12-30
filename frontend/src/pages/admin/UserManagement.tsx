@@ -3,6 +3,7 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { adminService } from '../../services/adminService';
+import { subscriptionAdminService, AdminPlan, UserSubscriptionInfo } from '../../services/subscriptionAdminService';
 import { LoadingState } from '../../components/common/LoadingState';
 import { ErrorState } from '../../components/common/ErrorState';
 
@@ -24,9 +25,18 @@ export default function UserManagement() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
+  
+  // Abonelik atama modal state
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [plans, setPlans] = useState<AdminPlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+  const [userSubscription, setUserSubscription] = useState<UserSubscriptionInfo | null>(null);
+  const [assigningSubscription, setAssigningSubscription] = useState(false);
 
   useEffect(() => {
     loadUsers();
+    loadPlans();
   }, []);
 
   const loadUsers = async () => {
@@ -39,6 +49,45 @@ export default function UserManagement() {
       setError(err instanceof Error ? err.message : 'Kullanıcılar yüklenirken hata oluştu');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPlans = async () => {
+    try {
+      const plansData = await subscriptionAdminService.getAll();
+      setPlans(plansData.filter(p => p.isActive));
+    } catch (err) {
+      console.error('Planlar yüklenirken hata:', err);
+    }
+  };
+
+  const openSubscriptionModal = async (user: User) => {
+    setSelectedUser(user);
+    setSelectedPlanId(null);
+    setShowSubscriptionModal(true);
+    
+    try {
+      const subInfo = await subscriptionAdminService.getUserSubscription(user.id);
+      setUserSubscription(subInfo);
+    } catch (err) {
+      setUserSubscription(null);
+    }
+  };
+
+  const handleAssignSubscription = async () => {
+    if (!selectedUser || !selectedPlanId) return;
+    
+    try {
+      setAssigningSubscription(true);
+      await subscriptionAdminService.assignSubscription(selectedUser.id, selectedPlanId);
+      alert('Abonelik başarıyla atandı!');
+      setShowSubscriptionModal(false);
+      setSelectedUser(null);
+      setSelectedPlanId(null);
+    } catch (err) {
+      alert('Abonelik atanırken hata oluştu');
+    } finally {
+      setAssigningSubscription(false);
     }
   };
 
@@ -165,6 +214,15 @@ export default function UserManagement() {
                   </select>
 
                   <Button
+                    onClick={() => openSubscriptionModal(user)}
+                    variant="outline"
+                    size="sm"
+                    className="font-medium"
+                  >
+                    Abonelik
+                  </Button>
+
+                  <Button
                     onClick={() => handleToggleUserStatus(user.id, user.isActive)}
                     variant={user.isActive ? "destructive" : "default"}
                     size="sm"
@@ -193,6 +251,70 @@ export default function UserManagement() {
           )}
         </div>
       </Card>
+
+      {/* Abonelik Atama Modal */}
+      {showSubscriptionModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md p-6 bg-white">
+            <h3 className="text-xl font-semibold mb-4">Abonelik Yönetimi</h3>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">Kullanıcı:</p>
+              <p className="font-medium">{selectedUser.firstName} {selectedUser.lastName}</p>
+              <p className="text-sm text-gray-500">{selectedUser.email}</p>
+            </div>
+
+            {userSubscription && userSubscription.planName && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-gray-600">Mevcut Abonelik:</p>
+                <p className="font-medium text-blue-700">{userSubscription.planName}</p>
+                {userSubscription.endDate && (
+                  <p className="text-xs text-gray-500">
+                    Bitiş: {new Date(userSubscription.endDate).toLocaleDateString('tr-TR')}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Yeni Abonelik Planı Seçin:
+              </label>
+              <select
+                value={selectedPlanId || ''}
+                onChange={(e) => setSelectedPlanId(Number(e.target.value))}
+                className="w-full px-3 py-2 border rounded-md"
+              >
+                <option value="">Plan Seçin...</option>
+                {plans.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name} - {plan.price}₺ {plan.validityDays ? `(${plan.validityDays} gün)` : '(Süresiz)'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowSubscriptionModal(false);
+                  setSelectedUser(null);
+                  setUserSubscription(null);
+                }}
+              >
+                İptal
+              </Button>
+              <Button
+                onClick={handleAssignSubscription}
+                disabled={!selectedPlanId || assigningSubscription}
+              >
+                {assigningSubscription ? 'Atanıyor...' : 'Abonelik Ata'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

@@ -17,6 +17,11 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
 import SystemMonitoring from './pages/admin/SystemMonitoring';
 import PlanManagement from './pages/admin/PlanManagement';
+import AnalyticsPage from './pages/admin/AnalyticsPage';
+import SecurityPage from './pages/admin/SecurityPage';
+import SettingsPage from './pages/admin/SettingsPage';
+import AnnouncementsPage from './pages/admin/AnnouncementsPage';
+import RevenuePage from './pages/admin/RevenuePage';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { SearchProvider } from './contexts/SearchContext';
 
@@ -83,6 +88,11 @@ export default function App() {
                     <Route path="plans" element={<PlanManagement />} />
                     <Route path="users" element={<UserManagement />} />
                     <Route path="monitoring" element={<SystemMonitoring />} />
+                    <Route path="analytics" element={<AnalyticsPage />} />
+                    <Route path="security" element={<SecurityPage />} />
+                    <Route path="settings" element={<SettingsPage />} />
+                    <Route path="announcements" element={<AnnouncementsPage />} />
+                    <Route path="revenue" element={<RevenuePage />} />
                   </Routes>
                 </AppLayout>
               </AdminProtectedRoute>

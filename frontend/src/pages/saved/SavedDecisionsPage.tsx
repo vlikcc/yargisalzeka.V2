@@ -5,7 +5,7 @@ import { Skeleton } from '../../components/ui/skeleton';
 import { ErrorState } from '../../components/common/ErrorState';
 import { Scale, Calendar, Trash2, RefreshCw, Download, FileText, ChevronDown, X, Bookmark } from 'lucide-react';
 import { Button } from '../../components/ui/button';
-import JSZip from 'jszip';
+import { downloadUdf } from '../../utils/udfGenerator';
 
 // İndirme fonksiyonları
 const downloadAsTxt = (decision: any) => {
@@ -16,12 +16,12 @@ const downloadAsTxt = (decision: any) => {
 KARAR BİLGİLERİ
 ────────────────────────────────────────────────────────────
 Daire: ${decision.court || decision.yargitayDairesi || 'Belirtilmemiş'}
-Karar No: ${decision.title || `${decision.esasNo}/${decision.kararNo}` || 'Belirtilmemiş'}
+Karar No: ${decision.title || `${decision.esasNo}/${decision.kararNo}` || `Karar #${decision.decisionId}` || 'Belirtilmemiş'}
 Karar Tarihi: ${decision.decisionDate || decision.kararTarihi ? new Date(decision.decisionDate || decision.kararTarihi).toLocaleDateString('tr-TR') : 'Belirtilmemiş'}
 
 KARAR METNİ
 ────────────────────────────────────────────────────────────
-${fullText.replace(/<[^>]*>/g, '')}
+${fullText || '(Karar metni kaydedilen veride bulunamadı)'}
 
 ════════════════════════════════════════════════════════════
 İndirme Tarihi: ${new Date().toLocaleDateString('tr-TR')}
@@ -61,10 +61,10 @@ const downloadAsDoc = (decision: any) => {
   <h1>YARGITAY KARARI</h1>
   <h2>KARAR BİLGİLERİ</h2>
   <p class="info"><span class="info-label">Daire:</span> ${decision.court || decision.yargitayDairesi || 'Belirtilmemiş'}</p>
-  <p class="info"><span class="info-label">Karar No:</span> ${decision.title || `${decision.esasNo}/${decision.kararNo}` || 'Belirtilmemiş'}</p>
+  <p class="info"><span class="info-label">Karar No:</span> ${decision.title || `${decision.esasNo}/${decision.kararNo}` || `Karar #${decision.decisionId}` || 'Belirtilmemiş'}</p>
   <p class="info"><span class="info-label">Karar Tarihi:</span> ${decision.decisionDate || decision.kararTarihi ? new Date(decision.decisionDate || decision.kararTarihi).toLocaleDateString('tr-TR') : 'Belirtilmemiş'}</p>
   <h2>KARAR METNİ</h2>
-  <div class="content">${fullText}</div>
+  <div class="content">${fullText || '(Karar metni bulunamadı)'}</div>
   <div class="footer">
     İndirme Tarihi: ${new Date().toLocaleDateString('tr-TR')}<br>
     Kaynak: Yargısal Zeka - yargisalzeka.com
@@ -85,78 +85,23 @@ const downloadAsDoc = (decision: any) => {
 
 const downloadAsUdf = async (decision: any) => {
   const court = decision.court || decision.yargitayDairesi || 'Belirtilmemiş';
-  const title = decision.title || `${decision.esasNo}/${decision.kararNo}` || 'Belirtilmemiş';
+  const title = decision.title || `${decision.esasNo}/${decision.kararNo}` || `Karar #${decision.decisionId}` || 'Belirtilmemiş';
   const date = decision.decisionDate || decision.kararTarihi ? new Date(decision.decisionDate || decision.kararTarihi).toLocaleDateString('tr-TR') : 'Belirtilmemiş';
   const fullText = (decision.fullText || decision.excerpt || decision.kararMetni || '').replace(/<[^>]*>/g, '');
-  const downloadDate = new Date().toLocaleDateString('tr-TR');
-  
-  const headerText = 'YARGITAY KARARI';
-  const infoText = `Daire: ${court}\nKarar No: ${title}\nKarar Tarihi: ${date}`;
-  const footerText = `İndirme Tarihi: ${downloadDate} - Yargısal Zeka`;
-  
-  const allContent = `${headerText}\n${infoText}\n${fullText}\n${footerText}`;
-  
-  let offset = 0;
-  const headerOffset = offset;
-  const headerLength = headerText.length;
-  offset += headerLength + 1;
-  
-  const infoOffset = offset;
-  const infoLength = infoText.length;
-  offset += infoLength + 1;
-  
-  const contentOffset = offset;
-  const contentLength = fullText.length;
-  offset += contentLength + 1;
-  
-  const footerOffset = offset;
-  const footerLength = footerText.length;
 
-  const contentXml = `<?xml version="1.0" encoding="UTF-8"?>
-<template format_id="1.8" description="Yargıtay Kararı" isTemplate="false">
-  <content><![CDATA[${allContent}]]></content>
-  <properties>
-    <pageFormat mediaSizeName="A4" leftMargin="70.86" rightMargin="70.86" topMargin="56.69" bottomMargin="56.69" paperOrientation="portrait" headerFOffset="30.0" footerFOffset="30.0" />
-  </properties>
-  <styles>
-    <style name="default" description="Varsayılan" family="Times New Roman" size="12" bold="false" italic="false" foreground="-16777216" />
-    <style name="baslik" parent="default" size="16" bold="true" foreground="-16777216" />
-    <style name="altbaslik" parent="default" size="12" bold="true" foreground="-16777216" />
-    <style name="icerik" parent="default" size="11" bold="false" foreground="-16777216" />
-    <style name="footer" parent="default" size="9" italic="true" foreground="-8421505" />
-  </styles>
-  <elements resolver="default">
-    <header background="-1" foreground="-16777216">
-      <paragraph Alignment="1">
-        <content family="Times New Roman" size="16" bold="true" startOffset="${headerOffset}" length="${headerLength}" style="baslik" />
-      </paragraph>
-    </header>
-    <paragraph Alignment="0" SpaceBefore="12.0" SpaceAfter="6.0">
-      <content family="Times New Roman" size="12" bold="true" startOffset="${infoOffset}" length="${infoLength}" style="altbaslik" />
-    </paragraph>
-    <paragraph Alignment="3" SpaceBefore="12.0" LineSpacing="1.5">
-      <content family="Times New Roman" size="11" startOffset="${contentOffset}" length="${contentLength}" style="icerik" />
-    </paragraph>
-    <footer background="-1" foreground="-8421505">
-      <paragraph Alignment="1">
-        <content family="Times New Roman" size="9" italic="true" startOffset="${footerOffset}" length="${footerLength}" style="footer" />
-      </paragraph>
-    </footer>
-  </elements>
-</template>`;
+  const content = `YARGITAY KARARI
 
-  const zip = new JSZip();
-  zip.file('content.xml', contentXml);
-  
-  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `yargitay_karari_${decision.id || decision.decisionId}.udf`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+Daire: ${court}
+Karar No: ${title}
+Karar Tarihi: ${date}
+
+${fullText}`;
+
+  await downloadUdf({
+    title: 'YARGITAY KARARI',
+    content,
+    date: new Date().toLocaleDateString('tr-TR')
+  }, `yargitay_karari_${decision.id || decision.decisionId}`);
 };
 
 export default function SavedDecisionsPage() {
@@ -170,6 +115,8 @@ export default function SavedDecisionsPage() {
     setError(null);
     try {
       const saved = await searchService.getSavedDecisions();
+      // Burada normalde kararın detaylarını çekmemiz gerekirdi ancak backend sadece ID dönüyor.
+      // Listede ID ve Tarih göstereceğiz.
       setData(saved);
     } catch (err) {
       setError('Kaydedilen kararlar yüklenemedi');
@@ -209,10 +156,10 @@ export default function SavedDecisionsPage() {
               <p className="text-sm text-neutral-500">Kaydettiğiniz Yargıtay kararları</p>
             </div>
           </div>
-          <Button 
-            onClick={loadSavedDecisions} 
-            variant="outline" 
-            size="sm" 
+          <Button
+            onClick={loadSavedDecisions}
+            variant="outline"
+            size="sm"
             className="font-medium"
             disabled={loading}
           >
@@ -253,8 +200,8 @@ export default function SavedDecisionsPage() {
       {/* Error State */}
       {error && (
         <div className="glass-card animate-slide-up">
-          <ErrorState 
-            description={error} 
+          <ErrorState
+            description={error}
             onRetry={loadSavedDecisions}
           />
         </div>
@@ -272,7 +219,7 @@ export default function SavedDecisionsPage() {
           <p className="text-sm text-neutral-500 max-w-md mx-auto mb-4">
             Arama sonuçlarında beğendiğiniz kararları kaydedin, buradan erişebilirsiniz.
           </p>
-          <Button 
+          <Button
             onClick={() => window.location.href = '/app/search'}
             className="btn-primary"
           >
@@ -286,8 +233,8 @@ export default function SavedDecisionsPage() {
       {data.length > 0 && (
         <div className="grid gap-4">
           {data.map((item, index) => (
-            <div 
-              key={item.decisionId} 
+            <div
+              key={item.decisionId}
               className="card hover-lift animate-slide-up"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
@@ -313,10 +260,10 @@ export default function SavedDecisionsPage() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex items-center justify-between mt-4 pt-3 border-t border-neutral-200/50">
                 <div className="flex items-center space-x-2">
-                  {/* İndirme dropdown - şu an sadece ID var, tam veri yok */}
+                  {/* İndirme dropdown */}
                   <div className="relative group">
                     <Button variant="ghost" size="sm" className="text-primary-600 hover:text-primary-700">
                       <Download className="w-3 h-3 mr-1" />
@@ -348,10 +295,10 @@ export default function SavedDecisionsPage() {
                     </div>
                   </div>
                 </div>
-                
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="text-error-600 hover:text-error-700 hover:bg-error-50"
                   onClick={() => handleRemove(item.decisionId)}
                   disabled={removingId === item.decisionId}
@@ -371,4 +318,3 @@ export default function SavedDecisionsPage() {
     </div>
   );
 }
-

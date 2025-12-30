@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Search, FileText, BarChart3, Shield, ArrowRight, Check, Scale, ChevronDown } from 'lucide-react';
+import { Search, FileText, BarChart3, Shield, ArrowRight, Check, ChevronDown } from 'lucide-react';
 import { ENDPOINTS, API_CONFIG } from '../../config/api';
 
 interface SubscriptionPlanDto {
@@ -73,9 +73,7 @@ export default function LandingPage() {
         <div className="container-app">
           <div className="flex justify-between items-center h-16">
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-9 h-9 bg-primary-800 rounded-lg flex items-center justify-center">
-                <Scale className="w-5 h-5 text-white" />
-              </div>
+              <img src="/logo.png" alt="Yargısal Zeka" className="w-9 h-9 object-contain" />
               <span className="text-lg font-semibold text-slate-900">Yargısal Zeka</span>
             </Link>
 
@@ -98,7 +96,7 @@ export default function LandingPage() {
         <div className="container-app">
           <div className="max-w-3xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-full text-sm font-medium mb-6">
-              <Scale className="w-4 h-4" />
+              <img src="/logo.png" alt="" className="w-4 h-4 object-contain" />
               Yapay Zeka Destekli Hukuk Platformu
             </div>
 
@@ -281,9 +279,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div className="md:col-span-2">
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                  <Scale className="w-4 h-4 text-white" />
-                </div>
+                <img src="/logo.png" alt="Yargısal Zeka" className="w-8 h-8 object-contain" />
                 <span className="font-semibold text-white">Yargısal Zeka</span>
               </div>
               <p className="text-sm max-w-sm">

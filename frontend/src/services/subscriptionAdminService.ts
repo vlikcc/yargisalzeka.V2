@@ -23,9 +23,18 @@ export interface PlanInput {
   isActive: boolean;
 }
 
+export interface UserSubscriptionInfo {
+  id: number | null;
+  planName: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  isActive: boolean;
+}
+
 class SubscriptionAdminService {
   // Use ApiGateway upstream without /api prefix (gateway supports both, keep it consistent with other calls)
   private base = '/subscription/admin/plans';
+  private subscriptionBase = '/subscription';
 
   async getAll(): Promise<AdminPlan[]> {
   return await httpClient.get<AdminPlan[]>(this.base);
@@ -41,6 +50,16 @@ class SubscriptionAdminService {
   }
   async remove(id: number): Promise<void> {
   await httpClient.delete<void>(`${this.base}/${id}`);
+  }
+
+  // Admin tarafından kullanıcıya abonelik atama
+  async assignSubscription(userId: string, planId: number): Promise<void> {
+    await httpClient.post<void>(`${this.subscriptionBase}/admin/assign`, { userId, planId });
+  }
+
+  // Kullanıcının mevcut abonelik bilgisini getir
+  async getUserSubscription(userId: string): Promise<UserSubscriptionInfo> {
+    return await httpClient.get<UserSubscriptionInfo>(`${this.subscriptionBase}/admin/user/${userId}`);
   }
 }
 

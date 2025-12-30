@@ -9,10 +9,29 @@ namespace IdentityService.DbContexts
         public IdentitiyDbContext(DbContextOptions<IdentitiyDbContext> options) : base(options)
         {
         }
+
+        public DbSet<LoginLog> LoginLogs { get; set; } = null!;
+        public DbSet<Announcement> Announcements { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
-            // Additional model configurations can be added here
+            
+            builder.Entity<LoginLog>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.UserId);
+                entity.HasIndex(e => e.Email);
+                entity.HasIndex(e => e.CreatedAt);
+                entity.HasIndex(e => e.IsSuccess);
+            });
+
+            builder.Entity<Announcement>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.IsActive);
+                entity.HasIndex(e => e.CreatedAt);
+            });
         }
     }   
    

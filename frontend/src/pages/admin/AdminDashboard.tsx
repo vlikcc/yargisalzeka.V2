@@ -147,29 +147,55 @@ export default function AdminDashboard() {
 
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4">Hızlı İşlemler</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <Button variant="outline" className="h-20 flex flex-col items-center justify-center font-medium">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            <Link to="/admin/users">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center font-medium">
               <span className="text-lg mb-1">👥</span>
               Kullanıcı Yönetimi
             </Button>
-            <Link to="/admin/plans" className="h-20">
+            </Link>
+            <Link to="/admin/plans">
               <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center font-medium">
                 <span className="text-lg mb-1">💳</span>
                 Abonelik Planları
               </Button>
             </Link>
-            <Button variant="outline" className="h-20 flex flex-col items-center justify-center font-medium">
-              <span className="text-lg mb-1">📊</span>
-              Analytics
+            <Link to="/admin/analytics">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center font-medium">
+                <span className="text-lg mb-1">📈</span>
+                Kullanım Analitiği
+              </Button>
+            </Link>
+            <Link to="/admin/monitoring">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center font-medium">
+                <span className="text-lg mb-1">🖥️</span>
+                Sistem İzleme
+              </Button>
+            </Link>
+            <Link to="/admin/security">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center font-medium">
+                <span className="text-lg mb-1">🔐</span>
+                Güvenlik
             </Button>
-            <Button variant="outline" className="h-20 flex flex-col items-center justify-center font-medium">
+            </Link>
+            <Link to="/admin/settings">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center font-medium">
               <span className="text-lg mb-1">⚙️</span>
               Sistem Ayarları
             </Button>
-            <Button variant="outline" className="h-20 flex flex-col items-center justify-center font-medium">
-              <span className="text-lg mb-1">📋</span>
-              Loglar
+            </Link>
+            <Link to="/admin/announcements">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center font-medium">
+                <span className="text-lg mb-1">📢</span>
+                Duyurular
+              </Button>
+            </Link>
+            <Link to="/admin/revenue">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center font-medium">
+                <span className="text-lg mb-1">💰</span>
+                Gelir Raporları
             </Button>
+            </Link>
           </div>
         </Card>
       </div>

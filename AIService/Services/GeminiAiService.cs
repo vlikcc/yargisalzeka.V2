@@ -136,7 +136,8 @@ BENZERLİK: [Hangi konularda benzer]
             sb.AppendLine($"- {d.Title ?? "Başlık yok"}: {summary ?? "Özet yok"}");
         }
         var prompt = $$"""
-Aşağıdaki bilgileri kullanarak hukuki dilekçe şablonu oluştur.
+Aşağıdaki bilgileri kullanarak hukuki dilekçe şablonu oluştur. Dilekçe şablonunda hukuki bir dil kullan. Dilekçe şablonunda * # - gibi işaretler kullanma.
+SADECE DİLEKÇE ŞABLONUNU ÜRET BAŞKA BİR YORUM YA DA AÇIKLAMA EKLEME.
 
 OLAY METNİ:
 {{caseText}}

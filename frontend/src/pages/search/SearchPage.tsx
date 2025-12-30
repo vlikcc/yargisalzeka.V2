@@ -1,9 +1,54 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchFlow } from '../../hooks/useSearch';
 import { PetitionGenerator } from '../../components/petition/PetitionGenerator';
-import { Search, Loader2, AlertCircle, FileText, Hash, ChevronDown, ChevronUp, Scale, Sparkles, Download, Bookmark, X, BookmarkCheck, Clock, History } from 'lucide-react';
-import JSZip from 'jszip';
+import { Search, Loader2, AlertCircle, FileText, Hash, ChevronDown, ChevronUp, Scale, Sparkles, Download, Bookmark, X, BookmarkCheck, Clock, History, Mic, MicOff } from 'lucide-react';
+import { downloadUdf } from '../../utils/udfGenerator';
 import { searchService } from '../../services/searchService';
+
+// Web Speech API Types
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+  onend: () => void;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  isFinal: boolean;
+  [index: number]: SpeechRecognitionAlternative;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message: string;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: { new(): SpeechRecognition };
+    webkitSpeechRecognition: { new(): SpeechRecognition };
+  }
+}
 
 // HTML etiketlerini temizleme ve highlight yapma
 const sanitizeAndHighlight = (text: string) => {
@@ -16,7 +61,7 @@ const sanitizeAndHighlight = (text: string) => {
 // TXT olarak indirme fonksiyonu (Türkçe karakter desteği ile)
 const downloadAsTxt = (decision: any) => {
   const fullText = (decision.fullText || decision.excerpt || '').replace(/<[^>]*>/g, '');
-  
+
   const content = `YARGITAY KARARI
 ════════════════════════════════════════════════════════════
 
@@ -49,7 +94,7 @@ Kaynak: Yargısal Zeka - yargisalzeka.com
 // DOCX olarak indirme (HTML tabanlı - Word tarafından açılabilir)
 const downloadAsDocx = (decision: any) => {
   const fullText = (decision.fullText || decision.excerpt || '').replace(/<[^>]*>/g, '');
-  
+
   // Word-compatible HTML oluştur
   const htmlContent = `
 <!DOCTYPE html>
@@ -96,93 +141,26 @@ const downloadAsDocx = (decision: any) => {
   URL.revokeObjectURL(url);
 };
 
-// UYAP UDF formatında indirme
+// UYAP UDF formatında indirme - Gerçek UYAP formatına uyumlu
 const downloadAsUdf = async (decision: any) => {
   const fullText = (decision.fullText || decision.excerpt || '').replace(/<[^>]*>/g, '');
   const court = decision.court || 'Belirtilmemiş';
   const title = decision.title || 'Belirtilmemiş';
   const date = decision.decisionDate ? new Date(decision.decisionDate).toLocaleDateString('tr-TR') : 'Belirtilmemiş';
-  const downloadDate = new Date().toLocaleDateString('tr-TR');
-  
-  // Tüm içerik metni (CDATA bloğu için)
-  const headerText = 'YARGITAY KARARI';
-  const infoText = `Daire: ${court}\nKarar No: ${title}\nKarar Tarihi: ${date}`;
-  const contentText = fullText;
-  const footerText = `İndirme Tarihi: ${downloadDate} - Yargısal Zeka`;
-  
-  const allContent = `${headerText}\n${infoText}\n${contentText}\n${footerText}`;
-  
-  // Offset hesaplamaları
-  let offset = 0;
-  const headerOffset = offset;
-  const headerLength = headerText.length;
-  offset += headerLength + 1;
-  
-  const infoOffset = offset;
-  const infoLength = infoText.length;
-  offset += infoLength + 1;
-  
-  const contentOffset = offset;
-  const contentLength = contentText.length;
-  offset += contentLength + 1;
-  
-  const footerOffset = offset;
-  const footerLength = footerText.length;
 
-  // UDF content.xml oluştur
-  const contentXml = `<?xml version="1.0" encoding="UTF-8"?>
-<template format_id="1.8" description="Yargıtay Kararı" isTemplate="false">
-  <content><![CDATA[${allContent}]]></content>
-  
-  <properties>
-    <pageFormat mediaSizeName="A4" leftMargin="70.86" rightMargin="70.86" topMargin="56.69" bottomMargin="56.69" paperOrientation="portrait" headerFOffset="30.0" footerFOffset="30.0" />
-  </properties>
-  
-  <styles>
-    <style name="default" description="Varsayılan" family="Times New Roman" size="12" bold="false" italic="false" foreground="-16777216" />
-    <style name="baslik" parent="default" size="16" bold="true" foreground="-16777216" />
-    <style name="altbaslik" parent="default" size="12" bold="true" foreground="-16777216" />
-    <style name="icerik" parent="default" size="11" bold="false" foreground="-16777216" />
-    <style name="footer" parent="default" size="9" italic="true" foreground="-8421505" />
-  </styles>
-  
-  <elements resolver="default">
-    <header background="-1" foreground="-16777216">
-      <paragraph Alignment="1">
-        <content family="Times New Roman" size="16" bold="true" startOffset="${headerOffset}" length="${headerLength}" style="baslik" />
-      </paragraph>
-    </header>
-    
-    <paragraph Alignment="0" SpaceBefore="12.0" SpaceAfter="6.0">
-      <content family="Times New Roman" size="12" bold="true" startOffset="${infoOffset}" length="${infoLength}" style="altbaslik" />
-    </paragraph>
-    
-    <paragraph Alignment="3" SpaceBefore="12.0" LineSpacing="1.5">
-      <content family="Times New Roman" size="11" startOffset="${contentOffset}" length="${contentLength}" style="icerik" />
-    </paragraph>
-    
-    <footer background="-1" foreground="-8421505">
-      <paragraph Alignment="1">
-        <content family="Times New Roman" size="9" italic="true" startOffset="${footerOffset}" length="${footerLength}" style="footer" />
-      </paragraph>
-    </footer>
-  </elements>
-</template>`;
+  const content = `YARGITAY KARARI
 
-  // ZIP oluştur
-  const zip = new JSZip();
-  zip.file('content.xml', contentXml);
-  
-  // ZIP'i blob olarak al ve indir
-  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `yargitay_karari_${decision.id || 'unknown'}.udf`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+Daire: ${court}
+Karar No: ${title}
+Karar Tarihi: ${date}
+
+${fullText}`;
+
+  await downloadUdf({
+    title: 'YARGITAY KARARI',
+    content,
+    date: new Date().toLocaleDateString('tr-TR')
+  }, `yargitay_karari_${decision.id || 'unknown'}`);
 };
 
 export default function SearchPage() {
@@ -193,7 +171,66 @@ export default function SearchPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [savingDecisionId, setSavingDecisionId] = useState<number | null>(null);
   const { runSearch, result, isSearching, error, loadHistory, history } = useSearchFlow();
-  
+
+  // Dikte state
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  useEffect(() => {
+    // Web Speech API init
+    if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'tr-TR';
+
+      recognition.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        if (finalTranscript) {
+          setText(prev => {
+            const newText = prev + (prev && !prev.endsWith(' ') ? ' ' : '') + finalTranscript;
+            return newText;
+          });
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error', event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      if (recognitionRef.current) {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } else {
+        alert('Tarayıcınız sesle yazmayı desteklemiyor.');
+      }
+    }
+  };
+
   const wordCount = text.trim().split(/\s+/).filter(w => w.length > 0).length;
   const maxWords = 300;
   const isOverLimit = wordCount > maxWords;
@@ -208,8 +245,8 @@ export default function SearchPage() {
     }
   }, []);
 
-  useEffect(() => { 
-    loadHistory(); 
+  useEffect(() => {
+    loadHistory();
     loadSavedDecisions();
   }, [loadHistory, loadSavedDecisions]);
 
@@ -243,74 +280,87 @@ export default function SearchPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Page Header */}
-          <div>
+      <div>
         <h1 className="heading-3 mb-2">Hukuki Arama</h1>
         <p className="text-small">Olayınızı anlatın, size en uygun kararları bulalım</p>
       </div>
-      
+
       {/* Search Form */}
       <div className="card p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-slate-700 mb-2">
               Olay Açıklaması
             </label>
-          <textarea 
-            value={text} 
-              onChange={(e) => {
-                const newText = e.target.value;
-                const newWordCount = newText.trim().split(/\s+/).filter(w => w.length > 0).length;
-                if (newWordCount <= maxWords || newText.length < text.length) {
-                  setText(newText);
-                }
-              }}
-            rows={6} 
-              className={`textarea ${isOverLimit ? 'border-error-300 focus:border-error-500 focus:ring-error-100' : ''}`}
-              placeholder="Örneğin: Komşum bahçesine ağaç dikti ve bu ağaç benim evimin ışığını engelliyor. Bu konuda ne yapabilirim?" 
-            />
+            <div className="relative">
+              <textarea
+                value={text}
+                onChange={(e) => {
+                  const newText = e.target.value;
+                  const newWordCount = newText.trim().split(/\s+/).filter(w => w.length > 0).length;
+                  if (newWordCount <= maxWords || newText.length < text.length) {
+                    setText(newText);
+                  }
+                }}
+                rows={6}
+                className={`textarea ${isOverLimit ? 'border-error-300 focus:border-error-500 focus:ring-error-100' : ''}`}
+                placeholder="Örneğin: Komşum bahçesine ağaç dikti ve bu ağaç benim evimin ışığını engelliyor. Bu konuda ne yapabilirim?"
+              />
+              <button
+                type="button"
+                onClick={toggleListening}
+                className={`absolute right-3 bottom-3 p-2 rounded-full transition-all ${isListening
+                  ? 'bg-red-100 text-red-600 animate-pulse'
+                  : 'bg-slate-100/50 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+                  }`}
+                title={isListening ? "Dinlemeyi Durdur" : "Sesle Yaz"}
+              >
+                {isListening ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+              </button>
+            </div>
+
             <div className="flex justify-between mt-2">
               <p className="text-xs text-slate-400">
                 Detaylı açıklama daha iyi sonuçlar sağlar
               </p>
-              <p className={`text-xs font-medium ${
-                isOverLimit ? 'text-error-600' : wordCount > maxWords * 0.8 ? 'text-warning-600' : 'text-slate-400'
-          }`}>
-            {wordCount}/{maxWords} kelime
+              <p className={`text-xs font-medium ${isOverLimit ? 'text-error-600' : wordCount > maxWords * 0.8 ? 'text-warning-600' : 'text-slate-400'
+                }`}>
+                {wordCount}/{maxWords} kelime
               </p>
             </div>
           </div>
-          
+
           <div className="flex justify-end">
-            <button 
+            <button
               type="submit"
-            disabled={isSearching || !text.trim() || isOverLimit} 
+              disabled={isSearching || !text.trim() || isOverLimit}
               className="btn-primary"
-          >
+            >
               {isSearching ? (
-              <>
+                <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Analiz Ediliyor...
-              </>
-            ) : (
-              <>
-                <Search className="w-4 h-4 mr-2" />
-                Ara ve Analiz Et
-              </>
-            )}
+                  Analiz Ediliyor...
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4 mr-2" />
+                  Ara ve Analiz Et
+                </>
+              )}
             </button>
-        </div>
-      </form>
+          </div>
+        </form>
       </div>
 
       {/* Loading State */}
-  {isSearching && (
+      {isSearching && (
         <div className="card p-8 text-center">
           <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
-              </div>
+          </div>
           <p className="text-slate-900 font-medium mb-1">Yapay Zeka Analiz Ediyor</p>
           <p className="text-sm text-slate-500">Bu işlem birkaç saniye sürebilir...</p>
-            </div>
+        </div>
       )}
 
       {/* Error State */}
@@ -321,7 +371,7 @@ export default function SearchPage() {
             <div>
               <p className="font-medium text-error-800">Bir Hata Oluştu</p>
               <p className="text-sm text-error-600 mt-1">{error}</p>
-              <button 
+              <button
                 onClick={() => runSearch({ caseText: text })}
                 className="mt-3 text-sm font-medium text-error-700 hover:text-error-800"
               >
@@ -340,19 +390,19 @@ export default function SearchPage() {
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
                 <Sparkles className="w-5 h-5 text-primary-700" />
-                </div>
-                <div>
+              </div>
+              <div>
                 <h3 className="font-semibold text-slate-900">Olay Analizi</h3>
                 <p className="text-xs text-slate-500">Yapay zeka tarafından oluşturuldu</p>
               </div>
             </div>
-            
+
             <div className="bg-slate-50 rounded-lg p-4 mb-4">
               <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
                 {result.analysis || 'Analiz sonucu bulunamadı'}
               </p>
             </div>
-            
+
             {/* Keywords */}
             {result.keywords && result.keywords.length > 0 && (
               <div>
@@ -362,8 +412,8 @@ export default function SearchPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {result.keywords.map(keyword => (
-                    <span 
-                      key={keyword} 
+                    <span
+                      key={keyword}
                       className="badge-primary"
                     >
                       {keyword}
@@ -381,7 +431,7 @@ export default function SearchPage() {
                 <h3 className="font-semibold text-slate-900">En Uygun Kararlar</h3>
                 <span className="badge-primary">{result.decisions.length} karar</span>
               </div>
-              
+
               {result.decisions.map((decision, index) => (
                 <div key={decision.id} className="card overflow-hidden">
                   {/* Header */}
@@ -417,18 +467,18 @@ export default function SearchPage() {
                         {decision.relevanceExplanation.replace(/<[^>]*>/g, '')}
                       </p>
                     )}
-                    
-                    <div 
+
+                    <div
                       className="text-sm text-slate-600 leading-relaxed"
-                      dangerouslySetInnerHTML={{ 
+                      dangerouslySetInnerHTML={{
                         __html: sanitizeAndHighlight(
-                          expandedDecision === index 
+                          expandedDecision === index
                             ? (decision.fullText || decision.excerpt || '')
                             : (decision.excerpt?.substring(0, 300) + '...' || '')
                         )
                       }}
                     />
-                    
+
                     <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
                       <div className="flex items-center gap-2">
                         {(decision.fullText || decision.excerpt) && (decision.fullText || decision.excerpt).length > 300 && (
@@ -449,7 +499,7 @@ export default function SearchPage() {
                             )}
                           </button>
                         )}
-                        
+
                         <button
                           onClick={() => setSelectedDecision(decision)}
                           className="flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-slate-800 ml-4"
@@ -458,15 +508,14 @@ export default function SearchPage() {
                           Tam Metni Görüntüle
                         </button>
                       </div>
-                      
+
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleSaveToggle(decision)}
-                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                            savedDecisionIds.has(decision.id)
-                              ? 'bg-primary-100 text-primary-700'
-                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }`}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${savedDecisionIds.has(decision.id)
+                            ? 'bg-primary-100 text-primary-700'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
                         >
                           {savedDecisionIds.has(decision.id) ? (
                             <>
@@ -480,7 +529,7 @@ export default function SearchPage() {
                             </>
                           )}
                         </button>
-                        
+
                         <div className="relative group">
                           <button
                             className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
@@ -532,9 +581,9 @@ export default function SearchPage() {
           {/* Petition Generator */}
           <div className="card p-6">
             <PetitionGenerator currentSearch={result} originalCaseText={text} />
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Empty State with Search History */}
       {!isSearching && !result && (
@@ -548,7 +597,7 @@ export default function SearchPage() {
               Hukuki olayınızı yukarıdaki alana yazın ve yapay zeka destekli analizden yararlanın.
             </p>
           </div>
-          
+
           {/* Search History */}
           {history && history.length > 0 && (
             <div className="card p-6">
@@ -564,17 +613,17 @@ export default function SearchPage() {
                   {showHistory ? 'Gizle' : `Tümünü Gör (${history.length})`}
                 </button>
               </div>
-              
+
               <div className="space-y-3">
                 {(showHistory ? history : history.slice(0, 5)).map((item) => (
-                  <div 
+                  <div
                     key={item.id}
                     className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
                   >
                     <div className="flex-1">
                       <div className="flex flex-wrap gap-1.5 mb-1">
                         {item.keywords.slice(0, 5).map((keyword, idx) => (
-                          <span 
+                          <span
                             key={idx}
                             className="px-2 py-0.5 bg-primary-100 text-primary-700 text-xs rounded-full"
                           >
@@ -613,7 +662,7 @@ export default function SearchPage() {
           )}
         </div>
       )}
-        
+
       {/* Full Text Modal */}
       {selectedDecision && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -641,7 +690,7 @@ export default function SearchPage() {
                 <X className="w-5 h-5 text-slate-500" />
               </button>
             </div>
-            
+
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto flex-1">
               {selectedDecision.relevanceExplanation && (
@@ -650,27 +699,26 @@ export default function SearchPage() {
                   <p className="text-sm text-primary-700">{selectedDecision.relevanceExplanation.replace(/<[^>]*>/g, '')}</p>
                 </div>
               )}
-              
+
               <div className="prose prose-sm max-w-none">
                 <h4 className="text-sm font-medium text-slate-700 mb-3">Karar Metni</h4>
-                <div 
+                <div
                   className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{ 
+                  dangerouslySetInnerHTML={{
                     __html: sanitizeAndHighlight(selectedDecision.fullText || selectedDecision.excerpt || 'Metin bulunamadı')
                   }}
                 />
               </div>
             </div>
-            
+
             {/* Modal Footer */}
             <div className="p-4 border-t border-slate-200 flex items-center justify-end gap-3">
               <button
                 onClick={() => handleSaveToggle(selectedDecision)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  savedDecisionIds.has(selectedDecision.id)
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${savedDecisionIds.has(selectedDecision.id)
+                  ? 'bg-primary-100 text-primary-700'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
               >
                 {savedDecisionIds.has(selectedDecision.id) ? (
                   <>
@@ -684,7 +732,7 @@ export default function SearchPage() {
                   </>
                 )}
               </button>
-              
+
               <div className="relative group">
                 <button
                   className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors"
@@ -719,8 +767,8 @@ export default function SearchPage() {
               </div>
             </div>
           </div>
-          </div>
-        )}
+        </div>
+      )}
     </div>
   );
 }

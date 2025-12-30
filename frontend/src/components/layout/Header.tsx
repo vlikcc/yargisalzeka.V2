@@ -1,4 +1,4 @@
-import { User, LogOut, Menu, Scale, ChevronDown } from 'lucide-react';
+import { User, LogOut, Menu, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
@@ -47,9 +47,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
         
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary-800 rounded-lg flex items-center justify-center">
-            <Scale className="w-4 h-4 text-white" />
-          </div>
+          <img src="/logo.png" alt="Yargısal Zeka" className="w-8 h-8 object-contain" />
           <span className="font-semibold text-slate-900">Yargısal Zeka</span>
         </div>
       </div>

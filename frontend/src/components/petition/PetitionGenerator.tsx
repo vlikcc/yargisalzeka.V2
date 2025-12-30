@@ -3,7 +3,7 @@ import { petitionService, PetitionResponse } from '../../services/petitionServic
 import { useAsyncOperation } from '../../hooks/useAsyncOperation';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { FileText, AlertCircle, Copy, Download, Check, Loader2, ChevronDown, Scale } from 'lucide-react';
-import JSZip from 'jszip';
+import { downloadUdf } from '../../utils/udfGenerator';
 
 export interface CompositeSearchResponse {
   analysis: string;
@@ -20,7 +20,7 @@ export interface CompositeSearchResponse {
   }>;
 }
 
-interface Props { 
+interface Props {
   currentSearch?: CompositeSearchResponse | null;
   originalCaseText?: string;
 }
@@ -74,7 +74,7 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
 
   const downloadAsDoc = () => {
     if (!data?.content) return;
-    
+
     // Word-compatible HTML oluştur
     const htmlContent = `
 <!DOCTYPE html>
@@ -110,78 +110,14 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  const downloadAsUdf = async () => {
+  const downloadAsUdfHandler = async () => {
     if (!data?.content) return;
-    
-    const topic = data.topic || 'Hukuki Dilekçe';
-    const content = data.content;
-    const createdAt = new Date(data.createdAt).toLocaleDateString('tr-TR');
-    const footerText = `Oluşturma Tarihi: ${createdAt} - Yargısal Zeka`;
-    
-    const allContent = `${topic}\n${content}\n${footerText}`;
-    
-    // Offset hesaplamaları
-    let offset = 0;
-    const topicOffset = offset;
-    const topicLength = topic.length;
-    offset += topicLength + 1;
-    
-    const contentOffset = offset;
-    const contentLength = content.length;
-    offset += contentLength + 1;
-    
-    const footerOffset = offset;
-    const footerLength = footerText.length;
 
-    // UDF content.xml oluştur
-    const contentXml = `<?xml version="1.0" encoding="UTF-8"?>
-<template format_id="1.8" description="Dilekçe Taslağı" isTemplate="false">
-  <content><![CDATA[${allContent}]]></content>
-  
-  <properties>
-    <pageFormat mediaSizeName="A4" leftMargin="70.86" rightMargin="70.86" topMargin="56.69" bottomMargin="56.69" paperOrientation="portrait" headerFOffset="30.0" footerFOffset="30.0" />
-  </properties>
-  
-  <styles>
-    <style name="default" description="Varsayılan" family="Times New Roman" size="12" bold="false" italic="false" foreground="-16777216" />
-    <style name="baslik" parent="default" size="14" bold="true" foreground="-16777216" />
-    <style name="icerik" parent="default" size="12" bold="false" foreground="-16777216" />
-    <style name="footer" parent="default" size="9" italic="true" foreground="-8421505" />
-  </styles>
-  
-  <elements resolver="default">
-    <header background="-1" foreground="-16777216">
-      <paragraph Alignment="1">
-        <content family="Times New Roman" size="14" bold="true" startOffset="${topicOffset}" length="${topicLength}" style="baslik" />
-      </paragraph>
-    </header>
-    
-    <paragraph Alignment="3" SpaceBefore="12.0" LineSpacing="1.5">
-      <content family="Times New Roman" size="12" startOffset="${contentOffset}" length="${contentLength}" style="icerik" />
-    </paragraph>
-    
-    <footer background="-1" foreground="-8421505">
-      <paragraph Alignment="1">
-        <content family="Times New Roman" size="9" italic="true" startOffset="${footerOffset}" length="${footerLength}" style="footer" />
-      </paragraph>
-    </footer>
-  </elements>
-</template>`;
-
-    // ZIP oluştur
-    const zip = new JSZip();
-    zip.file('content.xml', contentXml);
-    
-    // ZIP'i blob olarak al ve indir
-    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `dilekce-${data.id || 'taslak'}.udf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await downloadUdf({
+      title: data.topic || 'Hukuki Dilekçe',
+      content: data.content,
+      date: new Date(data.createdAt).toLocaleDateString('tr-TR')
+    }, `dilekce-${data.id || 'taslak'}`);
   };
 
   // Form: Dilekçe henüz oluşturulmamışsa
@@ -213,7 +149,7 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
               />
             </div>
 
-            <button 
+            <button
               onClick={handleSubmit}
               disabled={!canGenerate || loading}
               className="btn-primary w-full justify-center"
@@ -270,7 +206,7 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
             <p className="text-xs text-slate-500">{data.topic}</p>
           </div>
         </div>
-        
+
         <div className="flex gap-2">
           <button
             onClick={copyToClipboard}
@@ -310,7 +246,7 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
                 Word (.doc)
               </button>
               <button
-                onClick={downloadAsUdf}
+                onClick={downloadAsUdfHandler}
                 className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
               >
                 <Scale className="w-4 h-4" />
@@ -330,6 +266,11 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
             {data.content}
           </pre>
         </div>
+      </div>
+
+      <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800">
+        <AlertCircle className="w-4 h-4 mt-0.5" />
+        <p>Bu dilekçe otomatik olarak kaydedilmiştir. Daha sonra "Dilekçelerim" sayfasından erişebilirsiniz.</p>
       </div>
     </div>
   );

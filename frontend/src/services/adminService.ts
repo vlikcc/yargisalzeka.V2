@@ -39,6 +39,83 @@ export interface SystemMetrics {
   timestamp: string;
 }
 
+export interface SearchStats {
+  totalSearches: number;
+  periodSearches: number;
+  uniqueUsers: number;
+  avgResults: number;
+  dailySearches: { date: string; count: number }[];
+  topKeywords: { keyword: string; count: number }[];
+}
+
+export interface LoginLog {
+  id: number;
+  userId: string;
+  email: string;
+  isSuccess: boolean;
+  failureReason?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+}
+
+export interface LoginStats {
+  totalAttempts: number;
+  successfulLogins: number;
+  failedLogins: number;
+  successRate: number;
+  dailyStats: { date: string; successCount: number; failCount: number }[];
+  failureReasons: { reason: string; count: number }[];
+  suspiciousIps: { ipAddress: string; failCount: number }[];
+}
+
+export interface Announcement {
+  id: number;
+  title: string;
+  content: string;
+  type: string;
+  isActive: boolean;
+  showOnDashboard: boolean;
+  startDate?: string;
+  endDate?: string;
+  createdAt: string;
+}
+
+export interface CreateAnnouncementRequest {
+  title: string;
+  content: string;
+  type: string;
+  showOnDashboard: boolean;
+  startDate?: string | null;
+  endDate?: string | null;
+}
+
+export interface RevenueStats {
+  totalRevenue: number;
+  activeSubscriptions: number;
+  totalSubscriptions: number;
+  newSubscriptions: number;
+  revenueByPlan: { planName: string; subscriptionCount: number; revenue: number }[];
+  dailyRevenue: { date: string; count: number; revenue: number }[];
+}
+
+export interface SubscriptionStats {
+  planDistribution: { plan: string; count: number }[];
+  dailyNewSubs: { date: string; count: number }[];
+  expiringSubscriptions: { userId: string; planName: string; endDate: string }[];
+  expiringCount: number;
+}
+
+export interface RecentSubscription {
+  id: number;
+  userId: string;
+  planName: string;
+  price: number;
+  startDate: string;
+  endDate?: string;
+  isActive: boolean;
+}
+
 export interface UpdateRoleRequest {
   role: string;
 }
@@ -73,61 +150,105 @@ class AdminService {
     await httpClient.delete(`${this.baseUrl}/users/${userId}`);
   }
 
-  // Sistem durumu kontrolü
+  // Arama istatistikleri
+  async getSearchStats(days: number = 30): Promise<SearchStats> {
+    return await httpClient.get<SearchStats>(`/search/admin/stats?days=${days}`);
+  }
+
+  // Giriş logları
+  async getLoginLogs(take: number = 100, skip: number = 0, success?: boolean): Promise<{ logs: LoginLog[]; totalCount: number }> {
+    let url = `${this.baseUrl}/login-logs?take=${take}&skip=${skip}`;
+    if (success !== undefined) {
+      url += `&success=${success}`;
+    }
+    return await httpClient.get<{ logs: LoginLog[]; totalCount: number }>(url);
+  }
+
+  // Giriş istatistikleri
+  async getLoginStats(days: number = 30): Promise<LoginStats> {
+    return await httpClient.get<LoginStats>(`${this.baseUrl}/login-stats?days=${days}`);
+  }
+
+  // Duyurular - Aktif olanlar (herkese açık)
+  async getActiveAnnouncements(): Promise<Announcement[]> {
+    return await httpClient.get<Announcement[]>(`${this.baseUrl}/announcements`);
+  }
+
+  // Duyurular - Admin için tümü
+  async getAllAnnouncements(): Promise<Announcement[]> {
+    return await httpClient.get<Announcement[]>(`${this.baseUrl}/admin/announcements`);
+  }
+
+  // Duyuru oluştur
+  async createAnnouncement(data: CreateAnnouncementRequest): Promise<void> {
+    await httpClient.post(`${this.baseUrl}/admin/announcements`, data);
+  }
+
+  // Duyuru güncelle
+  async updateAnnouncement(id: number, data: CreateAnnouncementRequest): Promise<void> {
+    await httpClient.put(`${this.baseUrl}/admin/announcements/${id}`, data);
+  }
+
+  // Duyuru aktif/pasif
+  async toggleAnnouncement(id: number): Promise<void> {
+    await httpClient.put(`${this.baseUrl}/admin/announcements/${id}/toggle`);
+  }
+
+  // Duyuru sil
+  async deleteAnnouncement(id: number): Promise<void> {
+    await httpClient.delete(`${this.baseUrl}/admin/announcements/${id}`);
+  }
+
+  // Gelir istatistikleri
+  async getRevenueStats(days: number = 30): Promise<RevenueStats> {
+    return await httpClient.get<RevenueStats>(`/subscription/admin/reports/revenue?days=${days}`);
+  }
+
+  // Abonelik istatistikleri
+  async getSubscriptionStats(days: number = 30): Promise<SubscriptionStats> {
+    return await httpClient.get<SubscriptionStats>(`/subscription/admin/reports/subscriptions?days=${days}`);
+  }
+
+  // Son abonelikler
+  async getRecentSubscriptions(take: number = 50): Promise<RecentSubscription[]> {
+    return await httpClient.get<RecentSubscription[]>(`/subscription/admin/reports/recent-subscriptions?take=${take}`);
+  }
+
+  // Sistem durumu kontrolü - Backend'den gerçek health check verisi al
   async getSystemHealth(): Promise<SystemHealth> {
     try {
-      // Paralel olarak tüm servislerin health check'ini yap
-      // Only check API Gateway health via configured BASE_URL to avoid CORS and direct service port access
-      const gatewayBase = (await import('../config/api')).API_CONFIG.BASE_URL.replace(/\/$/, '');
-      const services: Array<{ name: string; url: string }> = [
-        { name: 'API Gateway', url: `${gatewayBase}/health` },
-      ];
-
-      const servicePromises = services.map(async (service) => {
-        try {
-          const startTime = Date.now();
-          const response = await fetch(service.url, {
-            method: 'GET',
-            signal: AbortSignal.timeout(5000) // 5 saniye timeout
-          });
-
-          const responseTime = Date.now() - startTime;
-          const status = (response.ok ? 'up' : 'down') as 'up' | 'down';
-
-          return {
-            ...service,
-            status,
-            responseTime,
-            lastCheck: new Date().toISOString()
-          };
-        } catch (error) {
-          return {
-            ...service,
-            status: 'down' as const,
-            lastCheck: new Date().toISOString()
-          };
-        }
-      });
-
-  const results = await Promise.all(servicePromises);
-
-      // Genel durumu belirle
-      const downServices = results.filter(s => s.status === 'down').length;
-      const status: SystemHealth['status'] =
-        downServices === 0 ? 'healthy' :
-        downServices <= 2 ? 'warning' : 'error';
-
-      return {
-        status,
-  services: results
-      };
+      const data = await httpClient.get<SystemHealth>('/admin/system-health');
+      return data;
     } catch (error) {
       console.error('System health check failed:', error);
-      return {
-        status: 'error',
-        services: []
-      };
+      // Fallback: sadece API Gateway'i kontrol et
+      const gatewayBase = (await import('../config/api')).API_CONFIG.BASE_URL.replace(/\/$/, '');
+        try {
+          const startTime = Date.now();
+        const response = await fetch(`${gatewayBase}/health`, {
+            method: 'GET',
+          signal: AbortSignal.timeout(5000)
+          });
+          const responseTime = Date.now() - startTime;
+          return {
+          status: response.ok ? 'warning' : 'error',
+          services: [{
+            name: 'API Gateway',
+            status: response.ok ? 'up' : 'down',
+            responseTime,
+            lastCheck: new Date().toISOString(),
+            url: `${gatewayBase}/health`
+          }]
+          };
+      } catch {
+        return { status: 'error', services: [] };
+        }
     }
+  }
+
+  // Servis health check (SystemMonitoring sayfası için)
+  async getServiceHealth(): Promise<SystemHealth> {
+    return this.getSystemHealth();
   }
 
   // Sistem metrikleri

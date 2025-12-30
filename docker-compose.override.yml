@@ -35,6 +35,8 @@ services:
   apigateway:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "5161:5000"  # macOS'ta 5000 portu AirPlay tarafından kullanılıyor
     volumes:
     - ./ApiGateway:/app/src:ro
     - ./ApiGateway/ocelot.json:/app/ocelot.json:ro

@@ -9,7 +9,6 @@ import {
   Shield,
   Users,
   Activity,
-  Scale,
   Bookmark
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -39,9 +38,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="h-16 flex items-center px-6 border-b border-slate-100">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary-800 rounded-lg flex items-center justify-center">
-            <Scale className="w-4 h-4 text-white" />
-          </div>
+          <img src="/logo.png" alt="Yargısal Zeka" className="w-8 h-8 object-contain" />
           <span className="font-semibold text-slate-900">Yargısal Zeka</span>
         </div>
       </div>

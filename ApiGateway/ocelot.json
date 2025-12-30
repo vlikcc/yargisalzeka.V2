@@ -94,6 +94,20 @@
       "UpstreamHttpMethod": [ "POST", "DELETE" ]
     },
     {
+      "DownstreamPathTemplate": "/api/search/admin/stats",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "searchservice", "Port": 5004 } ],
+      "UpstreamPathTemplate": "/api/search/admin/stats",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/search/admin/stats",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "searchservice", "Port": 5004 } ],
+      "UpstreamPathTemplate": "/search/admin/stats",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
       "DownstreamPathTemplate": "/api/petition/generate",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [ { "Host": "documentservice", "Port": 5003 } ],
@@ -147,6 +161,20 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [ { "Host": "subscriptionservice", "Port": 5002 } ],
       "UpstreamPathTemplate": "/subscription/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/auth/admin/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "identityservice", "Port": 5001 } ],
+      "UpstreamPathTemplate": "/api/auth/admin/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/auth/admin/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [ { "Host": "identityservice", "Port": 5001 } ],
+      "UpstreamPathTemplate": "/auth/admin/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
     }
   ],

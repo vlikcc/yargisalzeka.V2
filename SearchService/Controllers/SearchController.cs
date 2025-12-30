@@ -171,6 +171,63 @@ public class SearchController : ControllerBase
 			.ToListAsync();
 		return Ok(items);
 	}
+
+	// GET api/search/admin/stats - Admin için arama istatistikleri
+	[HttpGet("admin/stats")]
+	[Authorize(Roles = "Admin,SuperAdmin")]
+	[ProducesResponseType(typeof(SearchStatsDto), 200)]
+	public async Task<IActionResult> GetSearchStats([FromQuery] int days = 30)
+	{
+		days = Math.Clamp(days, 1, 365);
+		var startDate = DateTime.UtcNow.AddDays(-days);
+		
+		// Toplam arama sayısı
+		var totalSearches = await _db.SearchHistories.CountAsync();
+		var periodSearches = await _db.SearchHistories.CountAsync(h => h.CreatedAt >= startDate);
+		
+		// Günlük arama sayıları
+		var dailySearches = await _db.SearchHistories
+			.Where(h => h.CreatedAt >= startDate)
+			.GroupBy(h => h.CreatedAt.Date)
+			.Select(g => new DailySearchCount(g.Key, g.Count()))
+			.OrderBy(x => x.Date)
+			.ToListAsync();
+		
+		// En çok aranan anahtar kelimeler
+		var allKeywords = await _db.SearchHistories
+			.Where(h => h.CreatedAt >= startDate)
+			.Select(h => h.Keywords)
+			.ToListAsync();
+		
+		var keywordCounts = allKeywords
+			.SelectMany(k => k.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+			.GroupBy(k => k.ToLower())
+			.Select(g => new KeywordCount(g.Key, g.Count()))
+			.OrderByDescending(x => x.Count)
+			.Take(20)
+			.ToList();
+		
+		// Benzersiz kullanıcı sayısı
+		var uniqueUsers = await _db.SearchHistories
+			.Where(h => h.CreatedAt >= startDate)
+			.Select(h => h.UserId)
+			.Distinct()
+			.CountAsync();
+		
+		// Ortalama sonuç sayısı
+		var avgResults = await _db.SearchHistories
+			.Where(h => h.CreatedAt >= startDate)
+			.AverageAsync(h => (double?)h.ResultCount) ?? 0;
+		
+		return Ok(new SearchStatsDto(
+			totalSearches,
+			periodSearches,
+			uniqueUsers,
+			Math.Round(avgResults, 1),
+			dailySearches,
+			keywordCounts
+		));
+	}
 }
 
 public class UsageStatsDto
@@ -183,5 +240,8 @@ public class UsageStatsDto
 
 public record SearchHistoryDto(long Id, List<string> Keywords, int ResultCount, DateTime CreatedAt);
 public record SavedDecisionDto(long DecisionId, DateTime SavedAt);
+public record SearchStatsDto(int TotalSearches, int PeriodSearches, int UniqueUsers, double AvgResults, List<DailySearchCount> DailySearches, List<KeywordCount> TopKeywords);
+public record DailySearchCount(DateTime Date, int Count);
+public record KeywordCount(string Keyword, int Count);
 
 

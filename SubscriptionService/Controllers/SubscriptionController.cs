@@ -178,6 +178,62 @@ public class SubscriptionController : ControllerBase
         await _dbContext.SaveChangesAsync();
         return Ok();
     }
+
+    // Admin tarafından kullanıcıya abonelik atama
+    [HttpPost("admin/assign")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    public async Task<ActionResult> AdminAssignSubscription([FromBody] AdminAssignSubscriptionRequest request)
+    {
+        var plan = await _dbContext.SubscriptionPlans.FindAsync(request.PlanId);
+        if (plan == null) return NotFound("Plan bulunamadı");
+
+        var now = DateTime.UtcNow;
+        
+        // Mevcut aktif abonelikleri pasifleştir
+        var activeSubs = await _dbContext.UserSubscriptions
+            .Where(s => s.UserId == request.UserId && s.IsActive)
+            .ToListAsync();
+        foreach (var s in activeSubs) s.IsActive = false;
+
+        // Yeni abonelik oluştur
+        var newSub = new UserSubscription
+        {
+            UserId = request.UserId,
+            SubscriptionPlanId = plan.Id,
+            StartDate = now,
+            EndDate = plan.ValidityDays.HasValue ? now.AddDays(plan.ValidityDays.Value) : null,
+            IsActive = true
+        };
+        _dbContext.UserSubscriptions.Add(newSub);
+        await _dbContext.SaveChangesAsync();
+        
+        _logger.LogInformation("Admin tarafından abonelik atandı: UserId={UserId}, PlanId={PlanId}", request.UserId, request.PlanId);
+        return Ok(new { message = "Abonelik başarıyla atandı" });
+    }
+
+    // Admin tarafından kullanıcının abonelik bilgisini görüntüleme
+    [HttpGet("admin/user/{userId}")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    public async Task<ActionResult<AdminUserSubscriptionDto>> GetUserSubscription(string userId)
+    {
+        var sub = await _dbContext.UserSubscriptions
+            .Include(s => s.SubscriptionPlan)
+            .OrderByDescending(s => s.StartDate)
+            .FirstOrDefaultAsync(s => s.UserId == userId && s.IsActive);
+        
+        if (sub == null)
+        {
+            return Ok(new AdminUserSubscriptionDto(null, null, null, null, false));
+        }
+
+        return Ok(new AdminUserSubscriptionDto(
+            sub.Id,
+            sub.SubscriptionPlan?.Name,
+            sub.StartDate,
+            sub.EndDate,
+            sub.IsActive
+        ));
+    }
 }
 
 public record UserSubscriptionDto(int Id, string PlanName, DateTime StartDate, DateTime? EndDate, bool IsActive);
@@ -199,3 +255,5 @@ public record RemainingCreditsDto
 }
 public record ConsumeFeatureRequestDto(string FeatureType);
 public record AssignTrialRequestDto(string UserId);
+public record AdminAssignSubscriptionRequest(string UserId, int PlanId);
+public record AdminUserSubscriptionDto(int? Id, string? PlanName, DateTime? StartDate, DateTime? EndDate, bool IsActive);
