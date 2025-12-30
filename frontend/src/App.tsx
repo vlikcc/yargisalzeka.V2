@@ -13,6 +13,7 @@ import HistoryPage from './pages/history/HistoryPage';
 import ProfilePage from './pages/profile/ProfilePage';
 import PetitionHistoryPage from './pages/petition/PetitionHistoryPage';
 import SavedDecisionsPage from './pages/saved/SavedDecisionsPage';
+import EditorPage from './pages/editor/EditorPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
 import SystemMonitoring from './pages/admin/SystemMonitoring';
@@ -48,60 +49,62 @@ export default function App() {
   return (
     <AuthProvider>
       <ErrorBoundary>
-      <Suspense fallback={<div className="p-4">Yükleniyor...</div>}>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route
-            path="/app/*"
-            element={
-              <ProtectedRoute>
-                <SubscriptionProvider>
-                  <SearchProvider>
-                    <AppLayout>
-                      <Routes>
-                        <Route index element={<DashboardPage />} />
-                        <Route path="search" element={<SearchPage />} />
-                        <Route path="subscription" element={<SubscriptionPage />} />
-                        <Route path="history" element={<HistoryPage />} />
-                        <Route path="profile" element={<ProfilePage />} />
-                        <Route path="petitions" element={<PetitionHistoryPage />} />
-                        <Route path="saved" element={<SavedDecisionsPage />} />
-                      </Routes>
-                    </AppLayout>
-                  </SearchProvider>
-                </SubscriptionProvider>
-              </ProtectedRoute>
-            }
-          />
+        <Suspense fallback={<div className="p-4">Yükleniyor...</div>}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route
+              path="/app/*"
+              element={
+                <ProtectedRoute>
+                  <SubscriptionProvider>
+                    <SearchProvider>
+                      <AppLayout>
+                        <Routes>
+                          <Route index element={<DashboardPage />} />
+                          <Route path="search" element={<SearchPage />} />
+                          <Route path="subscription" element={<SubscriptionPage />} />
+                          <Route path="history" element={<HistoryPage />} />
+                          <Route path="profile" element={<ProfilePage />} />
+                          <Route path="petitions" element={<PetitionHistoryPage />} />
+                          <Route path="saved" element={<SavedDecisionsPage />} />
+                          <Route path="editor" element={<EditorPage />} />
+                          <Route path="editor/:id" element={<EditorPage />} />
+                        </Routes>
+                      </AppLayout>
+                    </SearchProvider>
+                  </SubscriptionProvider>
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Admin Routes */}
-          <Route
-            path="/admin/*"
-            element={
-              <AdminProtectedRoute>
-                <AppLayout>
-                  <Routes>
-                    <Route index element={<AdminDashboard />} />
-                    <Route path="dashboard" element={<AdminDashboard />} />
-                    <Route path="plans" element={<PlanManagement />} />
-                    <Route path="users" element={<UserManagement />} />
-                    <Route path="monitoring" element={<SystemMonitoring />} />
-                    <Route path="analytics" element={<AnalyticsPage />} />
-                    <Route path="security" element={<SecurityPage />} />
-                    <Route path="settings" element={<SettingsPage />} />
-                    <Route path="announcements" element={<AnnouncementsPage />} />
-                    <Route path="revenue" element={<RevenuePage />} />
-                  </Routes>
-                </AppLayout>
-              </AdminProtectedRoute>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-  </Suspense>
-  </ErrorBoundary>
+            {/* Admin Routes */}
+            <Route
+              path="/admin/*"
+              element={
+                <AdminProtectedRoute>
+                  <AppLayout>
+                    <Routes>
+                      <Route index element={<AdminDashboard />} />
+                      <Route path="dashboard" element={<AdminDashboard />} />
+                      <Route path="plans" element={<PlanManagement />} />
+                      <Route path="users" element={<UserManagement />} />
+                      <Route path="monitoring" element={<SystemMonitoring />} />
+                      <Route path="analytics" element={<AnalyticsPage />} />
+                      <Route path="security" element={<SecurityPage />} />
+                      <Route path="settings" element={<SettingsPage />} />
+                      <Route path="announcements" element={<AnnouncementsPage />} />
+                      <Route path="revenue" element={<RevenuePage />} />
+                    </Routes>
+                  </AppLayout>
+                </AdminProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </AuthProvider>
   );
 }

@@ -3,12 +3,14 @@ import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { X, Scale } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
-import { Home, Search, FileText, History, CreditCard, User } from 'lucide-react';
+import { Home, Search, FileText, History, CreditCard, User, Edit2, Bookmark } from 'lucide-react';
 
 const mobileNavItems = [
   { to: '/app', label: 'Ana Sayfa', icon: Home },
   { to: '/app/search', label: 'Arama', icon: Search },
+  { to: '/app/saved', label: 'Kaydedilenler', icon: Bookmark },
   { to: '/app/petitions', label: 'Dilekçeler', icon: FileText },
+  { to: '/app/editor', label: 'Editör', icon: Edit2 },
   { to: '/app/history', label: 'Geçmiş', icon: History },
   { to: '/app/subscription', label: 'Abonelik', icon: CreditCard },
   { to: '/app/profile', label: 'Profil', icon: User },
@@ -16,24 +18,23 @@ const mobileNavItems = [
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+
   return (
     <div className="min-h-screen flex bg-slate-50">
       {/* Desktop Sidebar */}
       <Sidebar />
-      
+
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
-      
+
       {/* Mobile sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 transform transition-transform duration-300 lg:hidden ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 transform transition-transform duration-300 lg:hidden ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
         {/* Header */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -42,7 +43,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
             <span className="font-semibold text-slate-900">Yargısal Zeka</span>
           </div>
-          <button 
+          <button
             onClick={() => setSidebarOpen(false)}
             className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
           >
@@ -59,10 +60,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
               end={item.to === '/app'}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-primary-50 text-primary-800'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
+                  ? 'bg-primary-50 text-primary-800'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`
               }
             >
@@ -72,14 +72,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
       </aside>
-      
+
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        <Header 
-          className="sticky top-0 z-30" 
+        <Header
+          className="sticky top-0 z-30"
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
         />
-        
+
         <main className="flex-1 overflow-auto">
           <div className="container-app py-6 lg:py-8">
             <div className="animate-fade-in">

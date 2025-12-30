@@ -9,7 +9,8 @@ import {
   Shield,
   Users,
   Activity,
-  Bookmark
+  Bookmark,
+  Edit2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -18,6 +19,7 @@ const navItems = [
   { to: '/app/search', label: 'Arama', icon: Search },
   { to: '/app/saved', label: 'Kaydedilenler', icon: Bookmark },
   { to: '/app/petitions', label: 'Dilekçeler', icon: FileText },
+  { to: '/app/editor', label: 'Editör', icon: Edit2 },
   { to: '/app/history', label: 'Geçmiş', icon: History },
   { to: '/app/subscription', label: 'Abonelik', icon: CreditCard },
   { to: '/app/profile', label: 'Profil', icon: User },
@@ -51,10 +53,9 @@ export function Sidebar() {
             to={item.to}
             end={item.to === '/app'}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-primary-50 text-primary-800'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
+                ? 'bg-primary-50 text-primary-800'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`
             }
           >
@@ -74,10 +75,9 @@ export function Sidebar() {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-primary-50 text-primary-800'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
+                    ? 'bg-primary-50 text-primary-800'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`
                 }
               >

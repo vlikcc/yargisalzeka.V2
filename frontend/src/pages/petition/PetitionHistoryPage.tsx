@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { petitionService, PetitionHistoryItem, PetitionDetail } from '../../services/petitionService';
 import { LoadingState } from '../../components/common/LoadingState';
-import { FileText, Calendar, ChevronRight, Download, Eye, Scale, Search, X, Copy, Check } from 'lucide-react';
+import { FileText, Calendar, ChevronRight, Download, Eye, Scale, Search, X, Copy, Check, Edit } from 'lucide-react';
 import { useAsyncOperation } from '../../hooks/useAsyncOperation';
 import { ErrorState } from '../../components/common/ErrorState';
 import { downloadUdf } from '../../utils/udfGenerator';
@@ -65,6 +66,7 @@ const downloadAsUdfHandler = async (petition: PetitionDetail) => {
 };
 
 export default function PetitionHistoryPage() {
+  const navigate = useNavigate();
   const [history, setHistory] = useState<PetitionHistoryItem[]>([]);
   const { loading, error, run } = useAsyncOperation<PetitionHistoryItem[]>();
 
@@ -244,6 +246,17 @@ export default function PetitionHistoryPage() {
                 >
                   {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
                   {copied ? 'Kopyalandı' : 'Metni Kopyala'}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setSelectedPetition(null);
+                    navigate(`/app/editor/${selectedPetition.id}`);
+                  }}
+                  className="w-full btn-primary justify-start"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Editörde Düzenle
                 </button>
 
                 <div className="h-px bg-neutral-100 my-4" />
