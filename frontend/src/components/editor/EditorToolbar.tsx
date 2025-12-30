@@ -1,5 +1,5 @@
 import { Editor } from '@tiptap/react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
     Bold,
     Italic,
@@ -24,12 +24,16 @@ import {
     Plus,
     Minus,
     Scale,
+    Upload,
+    Loader2,
 } from 'lucide-react';
 import { downloadUdf } from '../../utils/udfGenerator';
+import { importUdfAsHtml } from '../../utils/udfParser';
 
 interface EditorToolbarProps {
     editor: Editor;
     onSave?: () => void;
+    onImport?: (content: string, title?: string) => void;
 }
 
 const FONT_FAMILIES = [
@@ -57,12 +61,14 @@ const HIGHLIGHT_COLORS = [
     '#fecaca', '#fca5a5', '#f87171',
 ];
 
-export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
+export function EditorToolbar({ editor, onSave, onImport }: EditorToolbarProps) {
     const [showFontDropdown, setShowFontDropdown] = useState(false);
     const [showSizeDropdown, setShowSizeDropdown] = useState(false);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showHighlightPicker, setShowHighlightPicker] = useState(false);
     const [showTableMenu, setShowTableMenu] = useState(false);
+    const [importing, setImporting] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const currentFontFamily = editor.getAttributes('textStyle').fontFamily || 'Times New Roman';
 
@@ -92,6 +98,40 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
         editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
         setShowTableMenu(false);
     }, [editor]);
+
+    const handleImportClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Reset input
+        e.target.value = '';
+
+        // Validate file extension
+        if (!file.name.toLowerCase().endsWith('.udf')) {
+            alert('Lütfen bir UDF dosyası seçin (.udf)');
+            return;
+        }
+
+        setImporting(true);
+        try {
+            const { html, title } = await importUdfAsHtml(file);
+
+            // Set content in editor
+            editor.commands.setContent(html);
+
+            // Call onImport callback if provided
+            onImport?.(html, title);
+        } catch (error) {
+            console.error('UDF import error:', error);
+            alert(error instanceof Error ? error.message : 'UDF dosyası yüklenemedi');
+        } finally {
+            setImporting(false);
+        }
+    }, [editor, onImport]);
 
     return (
         <div className="border-b border-slate-200 bg-white">
@@ -367,6 +407,30 @@ export function EditorToolbar({ editor, onSave }: EditorToolbarProps) {
 
                 {/* Save & Export */}
                 <div className="flex items-center gap-1 pl-2">
+                    {/* Hidden file input for UDF import */}
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept=".udf"
+                        className="hidden"
+                    />
+
+                    {/* Import Button */}
+                    <button
+                        onClick={handleImportClick}
+                        disabled={importing}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium disabled:opacity-50"
+                        title="UDF dosyası yükle"
+                    >
+                        {importing ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Upload className="w-4 h-4" />
+                        )}
+                        {importing ? 'Yükleniyor...' : 'UDF Yükle'}
+                    </button>
+
                     {onSave && (
                         <button
                             onClick={onSave}
