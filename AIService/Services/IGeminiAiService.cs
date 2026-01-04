@@ -8,4 +8,5 @@ public interface IGeminiAiService
     Task<RelevanceResponse> AnalyzeDecisionRelevanceAsync(string caseText, string decisionText);
     Task<string> GeneratePetitionTemplateAsync(string caseText, List<RelevantDecisionDto> relevantDecisions);
     Task<CaseAnalysisResponse> AnalyzeCaseTextAsync(string caseText);
+    Task<string> ExtractTextFromFileAsync(byte[] fileContent, string mimeType, string fileName);
 }

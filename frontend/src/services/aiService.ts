@@ -32,8 +32,8 @@ export interface CompositeSearchResponse {
 }
 
 // Full-Flow: Tek çağrıda tüm akış (analiz + arama + dilekçe)
-export interface FullFlowRequest { 
-  caseText: string; 
+export interface FullFlowRequest {
+  caseText: string;
   generatePetition?: boolean;
   petitionTopic?: string;
 }
@@ -54,18 +54,49 @@ export interface FullFlowResponse {
   petition?: string | null;
 }
 
+// Dosyadan metin çıkarma
+export interface FileExtractResponse {
+  success: boolean;
+  extractedText: string;
+  errorMessage?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
+}
+
 export const aiService = {
-  extractKeywords: (payload: KeywordExtractionRequest) => 
+  extractKeywords: (payload: KeywordExtractionRequest) =>
     httpClient.post<KeywordExtractionResponse>(ENDPOINTS.AI.EXTRACT_KEYWORDS, payload),
-  
-  analyzeCase: (payload: CaseAnalysisRequest) => 
+
+  analyzeCase: (payload: CaseAnalysisRequest) =>
     httpClient.post<CaseAnalysisResponse>(ENDPOINTS.AI.ANALYZE_CASE, payload),
-  
+
   // Mevcut composite search
-  compositeSearch: (payload: CompositeSearchRequest) => 
+  compositeSearch: (payload: CompositeSearchRequest) =>
     httpClient.post<CompositeSearchResponse>('/gemini/composite-search', payload, { timeout: 0 }),
-  
+
   // Yeni: Tam akış - analiz, arama ve opsiyonel dilekçe tek seferde
-  fullFlow: (payload: FullFlowRequest) => 
-    httpClient.post<FullFlowResponse>('/gemini/full-flow', payload, { timeout: 0 })
+  fullFlow: (payload: FullFlowRequest) =>
+    httpClient.post<FullFlowResponse>('/gemini/full-flow', payload, { timeout: 0 }),
+
+  // Dosyadan metin çıkarma (PDF, resim, Word, Excel)
+  extractTextFromFile: async (file: File): Promise<FileExtractResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await httpClient.post<FileExtractResponse>('/gemini/extract-text', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        timeout: 60000 // 60 saniye timeout (büyük dosyalar için)
+      });
+      return response;
+    } catch (error: any) {
+      return {
+        success: false,
+        extractedText: '',
+        errorMessage: error?.response?.data?.errorMessage || error?.message || 'Dosya işlenirken hata oluştu'
+      };
+    }
+  }
 };

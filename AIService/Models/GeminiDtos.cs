@@ -150,3 +150,15 @@ public class FullFlowResponse
     public bool PetitionGenerated { get; set; }
     public string? Petition { get; set; }
 }
+
+/// <summary>
+/// Dosyadan metin çıkarma yanıtı
+/// </summary>
+public class FileExtractResponse
+{
+    public bool Success { get; set; }
+    public string ExtractedText { get; set; } = string.Empty;
+    public string? ErrorMessage { get; set; }
+    public string? FileName { get; set; }
+    public string? MimeType { get; set; }
+}

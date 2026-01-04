@@ -595,6 +595,95 @@ public class GeminiController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>
+    /// Dosyadan metin çıkarma endpoint'i
+    /// PDF, resim, Word ve Excel dosyalarını destekler
+    /// </summary>
+    [HttpPost("extract-text")]
+    [ProducesResponseType(typeof(FileExtractResponse), 200)]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB limit
+    public async Task<IActionResult> ExtractTextFromFile(IFormFile file)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new FileExtractResponse
+            {
+                Success = false,
+                ErrorMessage = "Dosya yüklenmedi"
+            });
+        }
+
+        // Dosya boyutu kontrolü (max 10MB)
+        if (file.Length > 10 * 1024 * 1024)
+        {
+            return BadRequest(new FileExtractResponse
+            {
+                Success = false,
+                ErrorMessage = "Dosya boyutu 10MB'ı aşamaz"
+            });
+        }
+
+        // Desteklenen formatları kontrol et
+        var allowedMimeTypes = new[]
+        {
+            "application/pdf",
+            "image/jpeg", "image/png", "image/gif", "image/webp",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+            "application/msword", // .doc
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+            "application/vnd.ms-excel", // .xls
+            "text/plain"
+        };
+
+        var mimeType = file.ContentType;
+        var fileName = file.FileName;
+
+        // MIME type kontrolü veya uzantı kontrolü
+        var allowedExtensions = new[] { ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".txt" };
+        var extension = Path.GetExtension(fileName)?.ToLowerInvariant();
+
+        if (!allowedMimeTypes.Contains(mimeType) && !allowedExtensions.Contains(extension))
+        {
+            return BadRequest(new FileExtractResponse
+            {
+                Success = false,
+                ErrorMessage = $"Desteklenmeyen dosya formatı. Desteklenen formatlar: PDF, resim (JPG, PNG, GIF, WebP), Word (DOC, DOCX), Excel (XLS, XLSX), TXT"
+            });
+        }
+
+        try
+        {
+            using var memoryStream = new MemoryStream();
+            await file.CopyToAsync(memoryStream);
+            var fileContent = memoryStream.ToArray();
+
+            var extractedText = await _service.ExtractTextFromFileAsync(fileContent, mimeType, fileName);
+
+            _logger.LogInformation("Dosyadan metin çıkarıldı: {FileName}, UserId: {UserId}, Length: {Length}", 
+                fileName, userId, extractedText.Length);
+
+            return Ok(new FileExtractResponse
+            {
+                Success = true,
+                ExtractedText = extractedText,
+                FileName = fileName,
+                MimeType = mimeType
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Dosya işleme hatası: {FileName}", fileName);
+            return StatusCode(500, new FileExtractResponse
+            {
+                Success = false,
+                ErrorMessage = "Dosya işlenirken bir hata oluştu"
+            });
+        }
+    }
+
     [HttpPost("test-token")]
     [AllowAnonymous] // Bu endpoint için authentication gerekmez
     [ProducesResponseType(typeof(string), 200)]

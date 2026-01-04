@@ -13,7 +13,7 @@ import HistoryPage from './pages/history/HistoryPage';
 import ProfilePage from './pages/profile/ProfilePage';
 import PetitionHistoryPage from './pages/petition/PetitionHistoryPage';
 import SavedDecisionsPage from './pages/saved/SavedDecisionsPage';
-import EditorPage from './pages/editor/EditorPage';
+import EditorPage from '@/pages/editor/EditorPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
 import SystemMonitoring from './pages/admin/SystemMonitoring';

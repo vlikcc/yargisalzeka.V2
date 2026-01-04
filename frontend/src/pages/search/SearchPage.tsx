@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchFlow } from '../../hooks/useSearch';
 import { PetitionGenerator } from '../../components/petition/PetitionGenerator';
-import { Search, Loader2, AlertCircle, FileText, Hash, ChevronDown, ChevronUp, Scale, Sparkles, Download, Bookmark, X, BookmarkCheck, Clock, History, Mic, MicOff } from 'lucide-react';
+import { Search, Loader2, AlertCircle, FileText, Hash, ChevronDown, ChevronUp, Scale, Sparkles, Download, Bookmark, X, BookmarkCheck, Clock, History, Mic, MicOff, Upload } from 'lucide-react';
 import { downloadUdf } from '../../utils/udfGenerator';
 import { searchService } from '../../services/searchService';
+import { aiService } from '../../services/aiService';
 
 // Web Speech API Types
 interface SpeechRecognition extends EventTarget {
@@ -176,6 +177,10 @@ export default function SearchPage() {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
+  // Dosya yükleme state
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   useEffect(() => {
     // Web Speech API init
     if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
@@ -232,7 +237,7 @@ export default function SearchPage() {
   };
 
   const wordCount = text.trim().split(/\s+/).filter(w => w.length > 0).length;
-  const maxWords = 300;
+  const maxWords = 600;
   const isOverLimit = wordCount > maxWords;
 
   // Kaydedilen kararları API'den yükle
@@ -318,6 +323,75 @@ export default function SearchPage() {
                 {isListening ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
               </button>
             </div>
+
+            {/* File Upload Area */}
+            <div className="flex items-center gap-4 mt-2">
+              <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${isUploadingFile ? 'bg-slate-200 text-slate-400 cursor-wait' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}>
+                <input
+                  type="file"
+                  accept=".txt,.pdf,.doc,.docx,.xls,.xlsx,image/*"
+                  className="hidden"
+                  disabled={isUploadingFile}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+
+                    // Reset input value to allow re-upload of same file
+                    e.target.value = '';
+                    setUploadError(null);
+
+                    // .txt dosyaları için direkt FileReader kullan
+                    if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+                      const reader = new FileReader();
+                      reader.onload = (e) => {
+                        const content = e.target?.result as string;
+                        if (content) {
+                          setText(prev => {
+                            const newText = (prev ? prev + '\n\n' : '') + content;
+                            return newText.length > 10000 ? newText.substring(0, 10000) : newText;
+                          });
+                        }
+                      };
+                      reader.readAsText(file);
+                      return;
+                    }
+
+                    // Diğer dosyalar için API kullan
+                    setIsUploadingFile(true);
+                    try {
+                      const response = await aiService.extractTextFromFile(file);
+                      if (response.success && response.extractedText) {
+                        setText(prev => {
+                          const newText = (prev ? prev + '\n\n' : '') + response.extractedText;
+                          return newText.length > 10000 ? newText.substring(0, 10000) : newText;
+                        });
+                      } else {
+                        setUploadError(response.errorMessage || 'Dosya işlenemedi');
+                      }
+                    } catch (err: any) {
+                      setUploadError(err?.message || 'Dosya yüklenirken hata oluştu');
+                    } finally {
+                      setIsUploadingFile(false);
+                    }
+                  }}
+                />
+                {isUploadingFile ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {isUploadingFile ? 'İşleniyor...' : 'Dosya Ekle'}
+              </label>
+              <p className="text-xs text-slate-400">
+                PDF, resim, Word, Excel ve TXT dosyaları desteklenir
+              </p>
+            </div>
+            {uploadError && (
+              <div className="mt-2 text-xs text-error-600 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {uploadError}
+              </div>
+            )}
 
             <div className="flex justify-between mt-2">
               <p className="text-xs text-slate-400">

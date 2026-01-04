@@ -271,4 +271,200 @@ Bölümler:
         }
         return resp;
     }
+
+    public async Task<string> ExtractTextFromFileAsync(byte[] fileContent, string mimeType, string fileName)
+    {
+        try
+        {
+            // Word dosyaları (.docx)
+            if (mimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+                fileName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
+            {
+                return ExtractTextFromWord(fileContent);
+            }
+
+            // Eski Word dosyaları (.doc) - basit metin çıkarımı
+            if (mimeType == "application/msword" || fileName.EndsWith(".doc", StringComparison.OrdinalIgnoreCase))
+            {
+                // .doc dosyaları için basit metin çıkarımı dene
+                var text = Encoding.UTF8.GetString(fileContent);
+                // Basit temizleme
+                text = System.Text.RegularExpressions.Regex.Replace(text, @"[\x00-\x1F\x7F]", " ");
+                return text.Trim();
+            }
+
+            // Excel dosyaları (.xlsx)
+            if (mimeType == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+                fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            {
+                return ExtractTextFromExcel(fileContent);
+            }
+
+            // Eski Excel dosyaları (.xls)
+            if (mimeType == "application/vnd.ms-excel" || fileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Eski Excel formatı (.xls) desteklenmiyor. Lütfen .xlsx formatına dönüştürün.";
+            }
+
+            // PDF ve resimler için Gemini Vision API kullan
+            if (mimeType.StartsWith("image/") || mimeType == "application/pdf" ||
+                fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                return await ExtractTextWithGeminiVision(fileContent, mimeType);
+            }
+
+            // Düz metin dosyaları
+            if (mimeType == "text/plain" || fileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+            {
+                return Encoding.UTF8.GetString(fileContent);
+            }
+
+            return $"Desteklenmeyen dosya formatı: {mimeType}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Dosyadan metin çıkarma hatası: {FileName}", fileName);
+            return $"Dosya işlenirken hata oluştu: {ex.Message}";
+        }
+    }
+
+    private string ExtractTextFromWord(byte[] fileContent)
+    {
+        try
+        {
+            using var stream = new MemoryStream(fileContent);
+            using var doc = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(stream, false);
+            var body = doc.MainDocumentPart?.Document?.Body;
+            if (body == null) return string.Empty;
+
+            var sb = new StringBuilder();
+            foreach (var para in body.Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>())
+            {
+                sb.AppendLine(para.InnerText);
+            }
+            return sb.ToString().Trim();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Word dosyası işleme hatası");
+            return $"Word dosyası okunamadı: {ex.Message}";
+        }
+    }
+
+    private string ExtractTextFromExcel(byte[] fileContent)
+    {
+        try
+        {
+            using var stream = new MemoryStream(fileContent);
+            using var workbook = new ClosedXML.Excel.XLWorkbook(stream);
+            var sb = new StringBuilder();
+
+            foreach (var worksheet in workbook.Worksheets)
+            {
+                sb.AppendLine($"--- {worksheet.Name} ---");
+                var range = worksheet.RangeUsed();
+                if (range == null) continue;
+
+                foreach (var row in range.Rows())
+                {
+                    var cells = row.Cells().Select(c => c.GetString()).ToList();
+                    sb.AppendLine(string.Join("\t", cells));
+                }
+                sb.AppendLine();
+            }
+            return sb.ToString().Trim();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Excel dosyası işleme hatası");
+            return $"Excel dosyası okunamadı: {ex.Message}";
+        }
+    }
+
+    private async Task<string> ExtractTextWithGeminiVision(byte[] fileContent, string mimeType)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey)) throw new InvalidOperationException("Gemini API key missing.");
+
+        var client = _httpClientFactory.CreateClient("Gemini");
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{ProModel}:generateContent?key={_apiKey}";
+
+        // Base64 encode
+        var base64Data = Convert.ToBase64String(fileContent);
+
+        var prompt = "Bu belgedeki tüm metni Türkçe olarak oku ve yaz. Sadece belgedeki metni çıkar, yorum ekleme.";
+
+        var requestBody = new
+        {
+            contents = new[]
+            {
+                new
+                {
+                    parts = new object[]
+                    {
+                        new { text = prompt },
+                        new
+                        {
+                            inline_data = new
+                            {
+                                mime_type = mimeType,
+                                data = base64Data
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        var attempt = 0;
+        var maxAttempts = 3;
+        var rnd = new Random();
+
+        while (true)
+        {
+            attempt++;
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Post, url)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json")
+                };
+
+                var response = await client.SendAsync(request);
+                var body = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode)
+                {
+                    using var doc = JsonDocument.Parse(body);
+                    var text = doc.RootElement
+                        .GetProperty("candidates")[0]
+                        .GetProperty("content")
+                        .GetProperty("parts")[0]
+                        .GetProperty("text")
+                        .GetString();
+                    return text ?? string.Empty;
+                }
+
+                var status = (int)response.StatusCode;
+                if (status is not (429 or 500 or 502 or 503 or 504))
+                {
+                    _logger.LogWarning("Gemini Vision non-retryable status {Status}: {Body}", status, body);
+                    return $"Dosya işlenemedi (HTTP {status})";
+                }
+
+                _logger.LogWarning("Gemini Vision transient failure {Status} (attempt {Attempt}/{MaxAttempts})", status, attempt, maxAttempts);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Gemini Vision request exception (attempt {Attempt}/{MaxAttempts})", attempt, maxAttempts);
+            }
+
+            if (attempt >= maxAttempts)
+            {
+                return "Dosya işlenirken hata oluştu. Lütfen tekrar deneyin.";
+            }
+
+            var delayMs = (int)(Math.Pow(2, attempt - 1) * 250) + rnd.Next(0, 150);
+            await Task.Delay(delayMs);
+        }
+    }
 }
