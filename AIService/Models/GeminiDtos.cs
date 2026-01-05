@@ -6,6 +6,8 @@ public class KeywordRequest
 {
     [Required]
     public string CaseText { get; set; } = string.Empty;
+    public string? FileUri { get; set; }
+    public string? FileMimeType { get; set; }
 }
 
 public class RelevanceRequest
@@ -56,8 +58,8 @@ public class CaseAnalysisRequest
 {
     [Required]
     public string CaseText { get; set; } = string.Empty;
-    
-
+    public string? FileUri { get; set; }
+    public string? FileMimeType { get; set; }
 }
 
 public class CaseAnalysisResponse
@@ -82,6 +84,8 @@ public class CompositeSearchRequest
 {
     [Required]
     public string CaseText { get; set; } = string.Empty;
+    public string? FileUri { get; set; }
+    public string? FileMimeType { get; set; }
 }
 
 public class ScoredDecisionResult
@@ -127,6 +131,9 @@ public class FullFlowRequest
     /// Dilekçe konusu (opsiyonel)
     /// </summary>
     public string? PetitionTopic { get; set; }
+    
+    public string? FileUri { get; set; }
+    public string? FileMimeType { get; set; }
 }
 
 public class FullFlowResponse

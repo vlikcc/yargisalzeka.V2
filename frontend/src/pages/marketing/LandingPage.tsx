@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Search, FileText, BarChart3, Shield, ArrowRight, Check, ChevronDown } from 'lucide-react';
+import { Search, FileText, BarChart3, Shield, ArrowRight, Check, ChevronDown, Zap } from 'lucide-react';
 import { ENDPOINTS, API_CONFIG } from '../../config/api';
 
 interface SubscriptionPlanDto {
@@ -67,158 +67,231 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-100">
-        <div className="container-app">
-          <div className="flex justify-between items-center h-16">
-            <Link to="/" className="flex items-center gap-2">
-              <img src="/logo.png" alt="Yargısal Zeka" className="w-9 h-9 object-contain" />
-              <span className="text-lg font-semibold text-slate-900">Yargısal Zeka</span>
-            </Link>
+    <div className="min-h-screen flex flex-col font-sans text-slate-100 selection:bg-cyan-500/30 bg-slate-900">
 
-            <div className="hidden md:flex items-center gap-8">
-              <a href="#ozellikler" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Özellikler</a>
-              <a href="#fiyatlar" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Fiyatlar</a>
-              <a href="#sss" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">SSS</a>
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full z-50 glass border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            {/* Logo */}
+            <div className="flex-shrink-0 flex items-center gap-3">
+              <div className="relative w-10 h-10 group">
+                <div className="absolute inset-0 bg-cyan-500/20 blur-xl rounded-full group-hover:bg-cyan-500/30 transition-all duration-300"></div>
+                <img
+                  src="/images/logo-symbol.png"
+                  alt="Yargısal Zeka Logo"
+                  className="relative w-full h-full object-contain drop-shadow-[0_0_15px_rgba(6,182,212,0.5)]"
+                  width="40"
+                  height="40"
+                />
+              </div>
+              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-cyan-100 to-slate-400">
+                Yargısal Zeka
+              </span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Link to="/login" className="btn-ghost">Giriş</Link>
-              <Link to="/register" className="btn-primary">Ücretsiz Başla</Link>
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-8">
+              <a href="#ozellikler" className="text-sm font-medium text-slate-300 hover:text-white hover:scale-105 transition-all duration-200">Özellikler</a>
+              <a href="#fiyatlar" className="text-sm font-medium text-slate-300 hover:text-white hover:scale-105 transition-all duration-200">Fiyatlandırma</a>
+              <a href="#sss" className="text-sm font-medium text-slate-300 hover:text-white hover:scale-105 transition-all duration-200">SSS</a>
+              <button
+                onClick={() => navigate('/login')}
+                className="px-6 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white text-sm font-medium transition-all duration-300 backdrop-blur-sm"
+              >
+                Giriş Yap
+              </button>
+              <button
+                onClick={() => navigate('/register')}
+                className="group relative px-6 py-2.5 rounded-full overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 to-violet-600 transition-transform duration-300 group-hover:scale-105"></div>
+                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+                <span className="relative text-white text-sm font-medium">Ücretsiz Dene</span>
+              </button>
+            </div>
+
+            {/* Mobile menu button */}
+            <div className="md:hidden">
+              <button className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition-colors">
+                {/* Assuming Menu icon is imported or defined elsewhere, adding a placeholder */}
+                {/* <Menu className="w-6 h-6" /> */}
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="section pt-20 pb-24">
-        <div className="container-app">
-          <div className="max-w-3xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-full text-sm font-medium mb-6">
-              <img src="/logo.png" alt="" className="w-4 h-4 object-contain" />
-              Yapay Zeka Destekli Hukuk Platformu
-            </div>
+      <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
+        {/* Background Image with Overlay */}
+        <div className="absolute inset-0 z-0 select-none">
+          <img
+            src="/images/hero-bg.jpg"
+            alt="Background"
+            className="w-full h-full object-cover opacity-20 scale-105 animate-pulse-slow"
+            width="1920"
+            height="1080"
+            loading="eager"
+            fetchPriority="high"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-900/90 to-slate-900"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-900/20 via-slate-900/0 to-slate-900/0"></div>
+        </div>
+        <div className="container-app relative z-10 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm mb-8 animate-fade-in-up">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+            <span className="text-sm font-medium text-cyan-300">Yapay Zeka Destekli Hukuk Platformu</span>
+          </div>
 
-            <h1 className="heading-1 mb-6">
-              Yargı Kararlarını<br />
-              <span className="text-primary-700">Akıllıca Araştırın</span>
-            </h1>
+          <h1 className="text-5xl md:text-7xl font-bold mb-8 leading-tight tracking-tight">
+            Yargı Kararlarını <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-violet-400 to-fuchsia-400 animate-gradient-x">
+              Akıllıca Araştırın
+            </span>
+          </h1>
 
-            <p className="text-lg text-slate-600 mb-10 max-w-2xl mx-auto">
-              Binlerce yargı kararını saniyeler içinde arayın, yapay zeka ile analiz edin 
-              ve profesyonel dilekçe taslakları oluşturun.
-            </p>
+          <p className="text-lg md:text-xl text-slate-400 mb-12 max-w-2xl mx-auto leading-relaxed">
+            Binlerce yargı kararını saniyeler içinde tarayın, yapay zeka ile analiz edin ve profesyonel dilekçe taslakları oluşturun. Hukuk pratiğinizi geleceğe taşıyın.
+          </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/register" className="btn-primary btn-lg">
-                Ücretsiz Başlayın
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Link>
-              <a href="#ozellikler" className="btn-secondary btn-lg">
-                Daha Fazla Bilgi
-              </a>
-            </div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Link
+              to="/register"
+              className="h-14 px-8 text-lg inline-flex items-center justify-center bg-gradient-to-r from-cyan-600 to-violet-600 hover:from-cyan-500 hover:to-violet-500 text-white font-semibold border-0 shadow-xl shadow-cyan-900/20 transition-all hover:scale-105 rounded-xl"
+            >
+              Ücretsiz Başlayın <ArrowRight className="ml-2 w-5 h-5" />
+            </Link>
+            <a
+              href="#ozellikler"
+              className="h-14 px-8 text-lg inline-flex items-center justify-center border border-white/10 bg-white/5 hover:bg-white/10 text-white backdrop-blur-sm transition-all rounded-xl"
+            >
+              Daha Fazla Bilgi
+            </a>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 pt-12 border-t border-slate-100">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-24 pt-12 border-t border-white/5 max-w-4xl mx-auto">
             {[
               { value: '10M+', label: 'Yargı Kararı' },
               { value: '50K+', label: 'Kullanıcı' },
               { value: '99.9%', label: 'Uptime' },
               { value: '24/7', label: 'Destek' }
-            ].map(stat => (
-              <div key={stat.label} className="text-center">
-                <div className="text-3xl font-bold text-primary-800">{stat.value}</div>
-                <div className="text-sm text-slate-500 mt-1">{stat.label}</div>
+            ].map((stat, i) => (
+              <div key={i} className="text-center">
+                <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>
+                <div className="text-sm text-slate-500 font-medium uppercase tracking-wider">{stat.label}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="ozellikler" className="section bg-slate-50">
+      {/* Features Section */}
+      <section id="ozellikler" className="py-24 relative">
         <div className="container-app">
-          <div className="text-center mb-16">
-            <h2 className="heading-2 mb-4">Güçlü Özellikler</h2>
-            <p className="text-body max-w-2xl mx-auto">
-              Hukuk profesyonelleri için tasarlanmış modern araçlar
+          <div className="text-center mb-20">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Güçlü Özellikler</h2>
+            <p className="text-slate-400 max-w-2xl mx-auto">
+              Hukuk profesyonelleri için tasarlanmış, iş akışınızı hızlandıran modern araçlar.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map(feature => (
-              <div key={feature.title} className="card p-6">
-                <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
-                  <feature.icon className="w-5 h-5 text-primary-700" />
+          <div className="grid md:grid-cols-2 gap-8">
+            {features.map((feature, index) => (
+              <div key={index} className="group relative overflow-hidden rounded-3xl glass border border-white/5 hover:border-cyan-500/30 transition-all duration-500">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-violet-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                <div className="p-8 md:p-10 flex flex-col md:flex-row gap-8 items-center relative z-10">
+                  <div className="flex-1 text-center md:text-left">
+                    <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 mx-auto md:mx-0 group-hover:scale-110 transition-transform duration-300">
+                      <feature.icon className="w-7 h-7 text-cyan-400" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-3 text-white">{feature.title}</h3>
+                    <p className="text-slate-400 leading-relaxed">
+                      {feature.description}
+                    </p>
+                  </div>
+                  <div className="w-full md:w-48 h-48 rounded-2xl overflow-hidden border border-white/10 shadow-2xl rotate-3 group-hover:rotate-0 transition-transform duration-500">
+                    <img src={feature.image} alt={feature.title} className="w-full h-full object-cover" />
+                  </div>
                 </div>
-                <h3 className="heading-4 mb-2">{feature.title}</h3>
-                <p className="text-small">{feature.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="fiyatlar" className="section">
+      {/* Pricing Section */}
+      <section id="fiyatlar" className="py-24 bg-slate-900/50">
         <div className="container-app">
-          <div className="text-center mb-16">
-            <h2 className="heading-2 mb-4">Basit Fiyatlandırma</h2>
-            <p className="text-body max-w-2xl mx-auto">
-              İhtiyacınıza uygun planı seçin
+          <div className="text-center mb-20">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Basit Fiyatlandırma</h2>
+            <p className="text-slate-400 max-w-2xl mx-auto">
+              İhtiyacınıza en uygun planı seçin, hemen kullanmaya başlayın.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {loading ? (
               [1, 2, 3].map(i => (
-                <div key={i} className="card p-6 animate-pulse">
-                  <div className="h-6 bg-slate-200 rounded mb-4 w-1/2"></div>
-                  <div className="h-10 bg-slate-200 rounded mb-6"></div>
+                <div key={i} className="glass rounded-3xl p-8 animate-pulse border border-white/5">
+                  <div className="h-6 bg-slate-700 rounded mb-4 w-1/2"></div>
+                  <div className="h-10 bg-slate-700 rounded mb-6"></div>
                   <div className="space-y-3">
                     {[1, 2, 3, 4].map(j => (
-                      <div key={j} className="h-4 bg-slate-200 rounded"></div>
+                      <div key={j} className="h-4 bg-slate-700 rounded"></div>
                     ))}
                   </div>
                 </div>
               ))
             ) : (
-              plans.map(plan => (
-                <div 
-                  key={plan.id} 
-                  className={`card p-6 flex flex-col ${plan.popular ? 'ring-2 ring-primary-600 shadow-lg' : ''}`}
+              plans.map((plan, index) => (
+                <div
+                  key={plan.id}
+                  className={`relative rounded-3xl p-8 flex flex-col glass transition-all duration-300 ${plan.popular
+                    ? 'border-cyan-500/50 shadow-2xl shadow-cyan-900/20 scale-105 z-10'
+                    : 'border-white/5 hover:border-white/10'
+                    }`}
                 >
                   {plan.popular && (
-                    <div className="bg-primary-600 text-white text-xs font-medium px-3 py-1 rounded-full self-start mb-4">
-                      Popüler
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-cyan-500 to-violet-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
+                      EN POPÜLER
                     </div>
                   )}
-                  
-                  <h3 className="heading-4 mb-1">{plan.name}</h3>
-                  <p className="text-small mb-4">{plan.description}</p>
-                  
-                  <div className="flex items-baseline mb-6">
-                    <span className="text-3xl font-bold text-slate-900">{plan.price}</span>
-                    {plan.period && <span className="text-slate-500 ml-1">{plan.period}</span>}
+
+                  <div className="mb-8">
+                    <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
+                    <p className="text-sm text-slate-400 h-10">{plan.description}</p>
                   </div>
 
-                  <ul className="space-y-3 mb-6 flex-1">
+                  <div className="flex items-baseline gap-1 mb-8">
+                    <span className="text-4xl font-bold text-white">{plan.price}</span>
+                    <span className="text-slate-500">{plan.period}</span>
+                  </div>
+
+                  <ul className="space-y-4 mb-8 flex-1">
                     {plan.features.map((feature, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                        <Check className="w-4 h-4 text-success-500 mt-0.5 shrink-0" />
+                      <li key={i} className="flex items-start gap-3 text-sm text-slate-300">
+                        <div className="w-5 h-5 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <Check className="w-3 h-3 text-cyan-400" />
+                        </div>
                         {feature}
                       </li>
                     ))}
                   </ul>
 
-                  <Link 
-                    to="/register" 
-                    className={plan.popular ? 'btn-primary w-full justify-center' : 'btn-secondary w-full justify-center'}
+                  <Link
+                    to="/register"
+                    className={`w-full h-12 font-semibold rounded-xl inline-flex items-center justify-center transition-all ${plan.popular
+                      ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-900'
+                      : 'bg-white/5 hover:bg-white/10 text-white'
+                      }`}
                   >
-                    Başla
+                    Planı Seç
                   </Link>
                 </div>
               ))
@@ -227,86 +300,70 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* FAQ */}
-      <section id="sss" className="section bg-slate-50">
-        <div className="container-app">
-          <div className="max-w-2xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="heading-2 mb-4">Sık Sorulan Sorular</h2>
-            </div>
+      {/* FAQ Section */}
+      <section id="sss" className="py-24">
+        <div className="container-app max-w-3xl">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Sık Sorulan Sorular</h2>
+          </div>
 
-            <div className="space-y-3">
-              {faq.map((item, index) => (
-                <div key={index} className="card">
-                  <button
-                    className="w-full p-5 text-left flex items-center justify-between"
-                    onClick={() => setOpenFaq(openFaq === index ? null : index)}
-                  >
-                    <span className="font-medium text-slate-900">{item.question}</span>
-                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${openFaq === index ? 'rotate-180' : ''}`} />
-                  </button>
-                  {openFaq === index && (
-                    <div className="px-5 pb-5 text-slate-600 text-sm">
-                      {item.answer}
-                    </div>
-                  )}
+          <div className="space-y-4">
+            {faq.map((item, index) => (
+              <div key={index} className="rounded-2xl glass border border-white/5 overflow-hidden">
+                <button
+                  className="w-full p-6 text-left flex items-center justify-between hover:bg-white/5 transition-colors"
+                  onClick={() => setOpenFaq(openFaq === index ? null : index)}
+                >
+                  <span className="font-medium text-lg text-slate-200">{item.question}</span>
+                  <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${openFaq === index ? 'rotate-180' : ''}`} />
+                </button>
+                <div
+                  className={`px-6 text-slate-400 leading-relaxed overflow-hidden transition-all duration-300 ${openFaq === index ? 'max-h-48 pb-6 opacity-100' : 'max-h-0 opacity-0'
+                    }`}
+                >
+                  {item.answer}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="section bg-primary-800">
-        <div className="container-app text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
+      {/* CTA Section */}
+      <section className="py-24 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-cyan-900/20 to-violet-900/20"></div>
+        <div className="container-app relative z-10 text-center">
+          <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
             Hukuk Araştırmalarınızı Hızlandırın
           </h2>
-          <p className="text-primary-200 mb-8 max-w-xl mx-auto">
-            Ücretsiz hesap oluşturun ve yapay zeka destekli platformun avantajlarından yararlanın.
+          <p className="text-xl text-slate-400 mb-10 max-w-2xl mx-auto">
+            Ücretsiz hesap oluşturun ve yapay zeka destekli platformun avantajlarından hemen yararlanmaya başlayın.
           </p>
-          <Link to="/register" className="inline-flex items-center px-6 py-3 bg-white text-primary-800 font-medium rounded-lg hover:bg-slate-50 transition-colors">
-            Ücretsiz Başla
-            <ArrowRight className="w-5 h-5 ml-2" />
+          <Link
+            to="/register"
+            className="h-14 px-10 text-lg inline-flex items-center justify-center bg-white text-slate-900 hover:bg-slate-100 font-bold shadow-xl hover:scale-105 transition-all rounded-xl"
+          >
+            Ücretsiz Başla <ArrowRight className="ml-2 w-5 h-5" />
           </Link>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-slate-400 py-12">
+      <footer className="py-12 border-t border-white/5 bg-slate-950">
         <div className="container-app">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <img src="/logo.png" alt="Yargısal Zeka" className="w-8 h-8 object-contain" />
-                <span className="font-semibold text-white">Yargısal Zeka</span>
-              </div>
-              <p className="text-sm max-w-sm">
-                Yapay zeka destekli hukuk platformu ile yargı kararlarını analiz edin ve dilekçe taslakları oluşturun.
-              </p>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="flex items-center gap-2">
+              <img src="/images/logo-symbol.png" alt="Yargısal Zeka Logo" className="w-8 h-8 object-contain opacity-80" />
+              <span className="text-lg font-bold text-slate-300">Yargısal Zeka</span>
             </div>
-
-            <div>
-              <h4 className="font-medium text-white mb-3">Platform</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#ozellikler" className="hover:text-white transition-colors">Özellikler</a></li>
-                <li><a href="#fiyatlar" className="hover:text-white transition-colors">Fiyatlar</a></li>
-                <li><a href="#sss" className="hover:text-white transition-colors">SSS</a></li>
-              </ul>
+            <div className="text-sm text-slate-500">
+              © {new Date().getFullYear()} Yargısal Zeka. Tüm hakları saklıdır.
             </div>
-
-            <div>
-              <h4 className="font-medium text-white mb-3">Hesap</h4>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/login" className="hover:text-white transition-colors">Giriş Yap</Link></li>
-                <li><Link to="/register" className="hover:text-white transition-colors">Kayıt Ol</Link></li>
-              </ul>
+            <div className="flex gap-6">
+              <a href="#" className="text-slate-500 hover:text-cyan-400 transition-colors">Gizlilik</a>
+              <a href="#" className="text-slate-500 hover:text-cyan-400 transition-colors">Kullanım Şartları</a>
+              <a href="#" className="text-slate-500 hover:text-cyan-400 transition-colors">İletişim</a>
             </div>
-          </div>
-
-          <div className="border-t border-slate-800 pt-8 text-center text-sm">
-            © {new Date().getFullYear()} Yargısal Zeka. Tüm hakları saklıdır.
           </div>
         </div>
       </footer>
@@ -317,69 +374,78 @@ export default function LandingPage() {
 const features = [
   {
     title: 'Akıllı Arama',
-    description: 'Elasticsearch ile güçlendirilmiş hızlı ve isabetli karar araması.',
-    icon: Search
+    description: 'Elasticsearch ile güçlendirilmiş, saniyeler içinde binlerce karar arasında nokta atışı arama.',
+    icon: Search,
+    image: '/images/feature-search.jpg'
   },
   {
     title: 'Yapay Zeka Analizi',
-    description: 'Kararları otomatik analiz edin, anahtar kelimeler çıkarın.',
-    icon: BarChart3
+    description: 'Kararları otomatik analiz edin, özetleyin ve kritik noktaları anında tespit edin.',
+    icon: Zap,
+    image: '/images/feature-ai.jpg'
   },
   {
     title: 'Dilekçe Oluşturma',
-    description: 'Analiz sonuçlarına göre profesyonel dilekçe taslakları.',
-    icon: FileText
+    description: 'Analiz sonuçlarına dayalı, profesyonel ve hukuki standartlara uygun dilekçe taslakları.',
+    icon: FileText,
+    image: '/images/feature-ai.jpg'
   },
   {
     title: 'Güvenli Platform',
-    description: 'End-to-end şifreleme ve güvenli veri saklama.',
-    icon: Shield
+    description: 'Uçtan uca şifreleme ve KVKK uyumlu altyapı ile verileriniz her zaman güvende.',
+    icon: Shield,
+    image: '/images/feature-security.jpg'
   }
 ];
 
 const faq = [
   {
     question: 'Platform nasıl çalışır?',
-    answer: 'Kayıt olduktan sonra hukuki olayınızı anlatın. Yapay zeka analiz yapar, anahtar kelimeleri çıkarır, ilgili kararları bulur ve size en uygun 3 kararı sunar. Dilekçe taslağı da otomatik oluşturulabilir.'
+    answer: 'Yargısal Zeka, milyonlarca yargı kararını tarayarak doğal dil işleme (NLP) teknolojisi ile analiz eder. Siz sadece aradığınız konuyu yazarsınız, sistem en alakalı sonuçları ve özetleri sunar.'
   },
   {
     question: 'Verilerim güvende mi?',
-    answer: 'Evet, tüm veriler end-to-end şifrelenir ve güvenli sunucularda saklanır. KVKK uyumlu çalışıyoruz.'
+    answer: 'Kesinlikle. Tüm verileriniz 256-bit SSL şifreleme ile korunur ve sunucularımızda güvenle saklanır. KVKK ve GDPR standartlarına tam uyumluyuz.'
   },
   {
     question: 'Ücretsiz deneme var mı?',
-    answer: 'Evet, kayıt olduğunuzda 3 günlük ücretsiz deneme paketi otomatik tanımlanır.'
+    answer: 'Evet, Başlangıç paketimiz tamamen ücretsizdir ve temel özellikleri denemeniz için tasarlanmıştır. Kredi kartı gerekmez.'
   },
   {
     question: 'Planımı değiştirebilir miyim?',
-    answer: 'Evet, istediğiniz zaman planınızı yükseltebilir veya düşürebilirsiniz.'
+    answer: 'İstediğiniz zaman planınızı yükseltebilir veya düşürebilirsiniz. Değişiklikler anında hesabınıza yansıtılır.'
   }
 ];
 
 const getDescription = (name: string): string => {
   const map: Record<string, string> = {
-    'Temel': 'Başlangıç için ideal',
-    'Standart': 'Yoğun kullanım için',
-    'Premium': 'Profesyoneller için'
+    'Temel': 'Bireysel kullanıcılar ve öğrenciler için ideal.',
+    'Standart': 'Hukuk büroları ve aktif avukatlar için.',
+    'Premium': 'Büyük ölçekli hukuk departmanları için.'
   };
-  return map[name] || 'Hukuk araştırmaları için';
+  return map[name] || 'Hukuk araştırmaları için tasarlandı.';
 };
 
 const getFeatures = (plan: SubscriptionPlanDto): string[] => {
   const list: string[] = [];
-  
+
   if (plan.keywordExtractionLimit < 0) list.push('Sınırsız anahtar kelime');
   else list.push(`${plan.keywordExtractionLimit} anahtar kelime`);
-  
-  if (plan.caseAnalysisLimit < 0) list.push('Sınırsız analiz');
+
+  if (plan.caseAnalysisLimit < 0) list.push('Gelişmiş AI Analizi');
   else list.push(`${plan.caseAnalysisLimit} olay analizi`);
-  
-  if (plan.searchLimit < 0) list.push('Sınırsız arama');
+
+  if (plan.searchLimit < 0) list.push('Sınırsız Arama');
   else list.push(`${plan.searchLimit} arama`);
-  
-  if (plan.petitionLimit < 0) list.push('Sınırsız dilekçe');
+
+  if (plan.petitionLimit < 0) list.push('Sınırsız Dilekçe');
   else if (plan.petitionLimit > 0) list.push(`${plan.petitionLimit} dilekçe`);
-  
+
+  // Add extra features for premium plans
+  if (plan.name.toLowerCase().includes('premium') || plan.name.toLowerCase().includes('standart')) {
+    list.push('7/24 Öncelikli Destek');
+  }
+
   return list;
 };
 

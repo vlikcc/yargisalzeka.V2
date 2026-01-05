@@ -1,9 +1,9 @@
 import { httpClient } from './httpClient';
 import { ENDPOINTS } from '../config/api';
 
-export interface KeywordExtractionRequest { caseText: string; }
+export interface KeywordExtractionRequest { caseText: string; fileUri?: string; fileMimeType?: string; }
 export interface KeywordExtractionResponse { keywords: string[]; processingTime?: number; }
-export interface CaseAnalysisRequest { caseText: string; }
+export interface CaseAnalysisRequest { caseText: string; fileUri?: string; fileMimeType?: string; }
 export interface CaseAnalysisResponse { caseType: string; summary: string; legalAreas?: string[]; outcomes?: string[]; }
 export interface Decision { id: string; keywords: string[]; }
 export interface ScoredDecision { decision: Decision; score?: number; relevanceReasons: string[]; }
@@ -24,7 +24,7 @@ export interface ScoredDecisionResult {
 }
 
 // Composite search models
-export interface CompositeSearchRequest { caseText: string; }
+export interface CompositeSearchRequest { caseText: string; fileUri?: string; fileMimeType?: string; }
 export interface CompositeSearchResponse {
   analysis: string;
   keywords: string[];
@@ -36,6 +36,8 @@ export interface FullFlowRequest {
   caseText: string;
   generatePetition?: boolean;
   petitionTopic?: string;
+  fileUri?: string;
+  fileMimeType?: string;
 }
 
 export interface FullFlowResponse {
@@ -61,6 +63,13 @@ export interface FileExtractResponse {
   errorMessage?: string | null;
   fileName?: string | null;
   mimeType?: string | null;
+}
+
+// Google File API upload response
+export interface GeminiFileResponse {
+  fileUri: string;
+  name: string;
+  mimeType: string;
 }
 
 export const aiService = {
@@ -98,5 +107,15 @@ export const aiService = {
         errorMessage: error?.response?.data?.errorMessage || error?.message || 'Dosya işlenirken hata oluştu'
       };
     }
+  },
+
+  // Google File API'ye yükleme
+  uploadFileToGemini: async (file: File): Promise<GeminiFileResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return httpClient.post<GeminiFileResponse>('/gemini/upload-gemini', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000 // 5 dakika upload için (büyük dosyalar)
+    });
   }
 };

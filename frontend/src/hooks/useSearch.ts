@@ -19,12 +19,16 @@ export function useSearchFlow() {
     }
   }, []);
 
-  const runSearch = useCallback(async (request: { caseText: string }) => {
+  const runSearch = useCallback(async (request: { caseText: string; fileUri?: string; fileMimeType?: string }) => {
     if (isSearching) return;
     setIsSearching(true);
     setError(null);
     try {
-      const resp = await aiService.compositeSearch({ caseText: request.caseText });
+      const resp = await aiService.compositeSearch({
+        caseText: request.caseText,
+        fileUri: request.fileUri,
+        fileMimeType: request.fileMimeType
+      });
       setResult(resp);
       refreshSubscription();
       loadHistory();
@@ -46,23 +50,27 @@ export function useFullFlow() {
   const [error, setError] = useState<string | null>(null);
   const { refresh: refreshSubscription } = useSubscription();
 
-  const runFullFlow = useCallback(async (request: { 
-    caseText: string; 
+  const runFullFlow = useCallback(async (request: {
+    caseText: string;
     generatePetition?: boolean;
     petitionTopic?: string;
+    fileUri?: string;
+    fileMimeType?: string;
   }) => {
     if (isProcessing) return;
     setIsProcessing(true);
     setError(null);
     setResult(null);
-    
+
     try {
       const resp = await aiService.fullFlow({
         caseText: request.caseText,
         generatePetition: request.generatePetition ?? false,
-        petitionTopic: request.petitionTopic
+        petitionTopic: request.petitionTopic,
+        fileUri: request.fileUri,
+        fileMimeType: request.fileMimeType
       });
-      
+
       if (!resp.success) {
         setError(resp.errorMessage || 'İşlem başarısız');
       } else {

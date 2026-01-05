@@ -1,10 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { searchService, SavedDecisionItem } from '../../services/searchService';
-import { LoadingState } from '../../components/common/LoadingState';
-import { Skeleton } from '../../components/ui/skeleton';
-import { ErrorState } from '../../components/common/ErrorState';
-import { Scale, Calendar, Trash2, RefreshCw, Download, FileText, ChevronDown, X, Bookmark } from 'lucide-react';
-import { Button } from '../../components/ui/button';
+import { Scale, Calendar, Trash2, RefreshCw, Download, FileText, ChevronDown, Bookmark, Loader2 } from 'lucide-react';
 import { downloadUdf } from '../../utils/udfGenerator';
 
 // İndirme fonksiyonları
@@ -41,34 +37,25 @@ Kaynak: Yargısal Zeka - yargisalzeka.com
 
 const downloadAsDoc = (decision: any) => {
   const fullText = (decision.fullText || decision.excerpt || decision.kararMetni || '').replace(/<[^>]*>/g, '');
-  const htmlContent = `
-<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+  const htmlContent = `<!DOCTYPE html>
+<html>
 <head>
 <meta charset="utf-8">
 <title>Yargıtay Kararı</title>
 <style>
   body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; margin: 2cm; }
-  h1 { font-size: 16pt; text-align: center; font-weight: bold; margin-bottom: 20pt; }
-  h2 { font-size: 14pt; font-weight: bold; margin-top: 20pt; margin-bottom: 10pt; border-bottom: 1px solid #000; padding-bottom: 5pt; }
-  .info { margin-bottom: 5pt; }
-  .info-label { font-weight: bold; }
-  .content { text-align: justify; white-space: pre-wrap; }
-  .footer { margin-top: 30pt; font-size: 10pt; color: #666; text-align: center; border-top: 1px solid #ccc; padding-top: 10pt; }
+  h1 { font-size: 16pt; text-align: center; font-weight: bold; }
+  h2 { font-size: 14pt; font-weight: bold; border-bottom: 1px solid #000; }
+  .content { white-space: pre-wrap; text-align: justify; }
 </style>
 </head>
 <body>
   <h1>YARGITAY KARARI</h1>
   <h2>KARAR BİLGİLERİ</h2>
-  <p class="info"><span class="info-label">Daire:</span> ${decision.court || decision.yargitayDairesi || 'Belirtilmemiş'}</p>
-  <p class="info"><span class="info-label">Karar No:</span> ${decision.title || `${decision.esasNo}/${decision.kararNo}` || `Karar #${decision.decisionId}` || 'Belirtilmemiş'}</p>
-  <p class="info"><span class="info-label">Karar Tarihi:</span> ${decision.decisionDate || decision.kararTarihi ? new Date(decision.decisionDate || decision.kararTarihi).toLocaleDateString('tr-TR') : 'Belirtilmemiş'}</p>
+  <p><strong>Daire:</strong> ${decision.court || decision.yargitayDairesi || 'Belirtilmemiş'}</p>
+  <p><strong>Karar No:</strong> ${decision.title || `Karar #${decision.decisionId}` || 'Belirtilmemiş'}</p>
   <h2>KARAR METNİ</h2>
   <div class="content">${fullText || '(Karar metni bulunamadı)'}</div>
-  <div class="footer">
-    İndirme Tarihi: ${new Date().toLocaleDateString('tr-TR')}<br>
-    Kaynak: Yargısal Zeka - yargisalzeka.com
-  </div>
 </body>
 </html>`;
 
@@ -83,19 +70,13 @@ const downloadAsDoc = (decision: any) => {
   URL.revokeObjectURL(url);
 };
 
-const downloadAsUdf = async (decision: any) => {
+const downloadAsUdfHandler = async (decision: any) => {
   const court = decision.court || decision.yargitayDairesi || 'Belirtilmemiş';
-  const title = decision.title || `${decision.esasNo}/${decision.kararNo}` || `Karar #${decision.decisionId}` || 'Belirtilmemiş';
+  const title = decision.title || `Karar #${decision.decisionId}` || 'Belirtilmemiş';
   const date = decision.decisionDate || decision.kararTarihi ? new Date(decision.decisionDate || decision.kararTarihi).toLocaleDateString('tr-TR') : 'Belirtilmemiş';
   const fullText = (decision.fullText || decision.excerpt || decision.kararMetni || '').replace(/<[^>]*>/g, '');
 
-  const content = `YARGITAY KARARI
-
-Daire: ${court}
-Karar No: ${title}
-Karar Tarihi: ${date}
-
-${fullText}`;
+  const content = `YARGITAY KARARI\n\nDaire: ${court}\nKarar No: ${title}\nKarar Tarihi: ${date}\n\n${fullText}`;
 
   await downloadUdf({
     title: 'YARGITAY KARARI',
@@ -115,8 +96,6 @@ export default function SavedDecisionsPage() {
     setError(null);
     try {
       const saved = await searchService.getSavedDecisions();
-      // Burada normalde kararın detaylarını çekmemiz gerekirdi ancak backend sadece ID dönüyor.
-      // Listede ID ve Tarih göstereceğiz.
       setData(saved);
     } catch (err) {
       setError('Kaydedilen kararlar yüklenemedi');
@@ -145,109 +124,90 @@ export default function SavedDecisionsPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="glass-card">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center shadow-glow">
-              <Bookmark className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold gradient-text">Kaydedilen Kararlar</h2>
-              <p className="text-sm text-neutral-500">Kaydettiğiniz Yargıtay kararları</p>
-            </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 rounded-2xl flex items-center justify-center border border-cyan-500/30">
+            <Bookmark className="w-6 h-6 text-cyan-400" />
           </div>
-          <Button
-            onClick={loadSavedDecisions}
-            variant="outline"
-            size="sm"
-            className="font-medium"
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-neutral-400 border-t-neutral-700 rounded-full animate-spin mr-2" />
-                Yükleniyor
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Yenile
-              </>
-            )}
-          </Button>
+          <div>
+            <h2 className="heading-3">Kaydedilen Kararlar</h2>
+            <p className="text-small">Kaydettiğiniz Yargıtay kararları</p>
+          </div>
         </div>
+        <button
+          onClick={loadSavedDecisions}
+          className="btn-secondary"
+          disabled={loading}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Yükleniyor
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Yenile
+            </>
+          )}
+        </button>
       </div>
 
       {/* Loading State */}
       {loading && data.length === 0 && (
-        <div className="glass-card animate-slide-up">
-          <LoadingState message="Kaydedilen kararlar yükleniyor..." />
-          <div className="space-y-3 mt-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="bg-neutral-50 rounded-xl p-4 animate-pulse">
-                <div className="flex justify-between items-start mb-2">
-                  <Skeleton className="h-5 w-48" />
-                  <Skeleton className="h-4 w-16" />
-                </div>
-                <Skeleton className="h-4 w-full mb-2" />
-                <Skeleton className="h-3 w-24" />
-              </div>
-            ))}
-          </div>
+        <div className="card p-8 text-center">
+          <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-4" />
+          <p className="text-slate-300">Kaydedilen kararlar yükleniyor...</p>
         </div>
       )}
 
       {/* Error State */}
       {error && (
-        <div className="glass-card animate-slide-up">
-          <ErrorState
-            description={error}
-            onRetry={loadSavedDecisions}
-          />
+        <div className="card p-6 border-red-500/20 bg-red-500/5">
+          <p className="text-red-400 text-center mb-4">{error}</p>
+          <button onClick={loadSavedDecisions} className="btn-secondary mx-auto block">
+            Tekrar Dene
+          </button>
         </div>
       )}
 
       {/* Empty State */}
       {!loading && !error && data.length === 0 && (
-        <div className="glass-card text-center py-12 animate-fade-in">
-          <div className="w-20 h-20 bg-neutral-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
-            <Bookmark className="w-10 h-10 text-neutral-400" />
+        <div className="card p-12 text-center">
+          <div className="w-20 h-20 bg-slate-700/50 rounded-3xl flex items-center justify-center mx-auto mb-4">
+            <Bookmark className="w-10 h-10 text-slate-500" />
           </div>
-          <p className="text-lg font-semibold text-neutral-900 mb-2">
+          <p className="text-lg font-semibold text-white mb-2">
             Henüz karar kaydetmediniz
           </p>
-          <p className="text-sm text-neutral-500 max-w-md mx-auto mb-4">
+          <p className="text-sm text-slate-400 max-w-md mx-auto mb-4">
             Arama sonuçlarında beğendiğiniz kararları kaydedin, buradan erişebilirsiniz.
           </p>
-          <Button
-            onClick={() => window.location.href = '/app/search'}
-            className="btn-primary"
-          >
+          <a href="/app/search" className="btn-primary inline-flex items-center">
             <Scale className="w-4 h-4 mr-2" />
             Karar Ara
-          </Button>
+          </a>
         </div>
       )}
 
       {/* Saved Decisions List */}
       {data.length > 0 && (
         <div className="grid gap-4">
-          {data.map((item, index) => (
+          {data.map((item) => (
             <div
               key={item.decisionId}
-              className="card hover-lift animate-slide-up"
-              style={{ animationDelay: `${index * 0.1}s` }}
+              className="card p-5 hover:border-cyan-500/30 transition-all duration-300"
             >
               <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl flex items-center justify-center shadow-soft">
-                    <Scale className="w-5 h-5 text-primary-700" />
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center border border-cyan-500/20">
+                    <Scale className="w-5 h-5 text-cyan-400" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-neutral-900">
+                    <h3 className="font-semibold text-white">
                       Karar #{item.decisionId}
                     </h3>
-                    <p className="text-sm text-neutral-500 flex items-center gap-1">
+                    <p className="text-sm text-slate-500 flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
                       Kayıt: {new Date(item.savedAt).toLocaleDateString('tr-TR', {
                         year: 'numeric',
@@ -261,33 +221,33 @@ export default function SavedDecisionsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mt-4 pt-3 border-t border-neutral-200/50">
-                <div className="flex items-center space-x-2">
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/10">
+                <div className="flex items-center gap-2">
                   {/* İndirme dropdown */}
                   <div className="relative group">
-                    <Button variant="ghost" size="sm" className="text-primary-600 hover:text-primary-700">
-                      <Download className="w-3 h-3 mr-1" />
+                    <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors">
+                      <Download className="w-3 h-3" />
                       İndir
                       <ChevronDown className="w-3 h-3 ml-1" />
-                    </Button>
-                    <div className="absolute left-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-slate-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                    </button>
+                    <div className="absolute left-0 mt-1 w-40 glass rounded-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                       <button
                         onClick={() => downloadAsTxt({ decisionId: item.decisionId })}
-                        className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                        className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-white/5 flex items-center gap-2"
                       >
                         <FileText className="w-4 h-4" />
                         TXT olarak
                       </button>
                       <button
                         onClick={() => downloadAsDoc({ decisionId: item.decisionId })}
-                        className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                        className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-white/5 flex items-center gap-2"
                       >
                         <FileText className="w-4 h-4" />
                         Word (.doc)
                       </button>
                       <button
-                        onClick={() => downloadAsUdf({ decisionId: item.decisionId })}
-                        className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                        onClick={() => downloadAsUdfHandler({ decisionId: item.decisionId })}
+                        className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-white/5 flex items-center gap-2"
                       >
                         <Scale className="w-4 h-4" />
                         UYAP (.udf)
@@ -296,20 +256,18 @@ export default function SavedDecisionsPage() {
                   </div>
                 </div>
 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-error-600 hover:text-error-700 hover:bg-error-50"
+                <button
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                   onClick={() => handleRemove(item.decisionId)}
                   disabled={removingId === item.decisionId}
                 >
                   {removingId === item.decisionId ? (
-                    <div className="w-3 h-3 border-2 border-error-400 border-t-error-700 rounded-full animate-spin mr-1" />
+                    <Loader2 className="w-3 h-3 animate-spin" />
                   ) : (
-                    <Trash2 className="w-3 h-3 mr-1" />
+                    <Trash2 className="w-3 h-3" />
                   )}
                   Kaldır
-                </Button>
+                </button>
               </div>
             </div>
           ))}

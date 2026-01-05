@@ -2,6 +2,7 @@ using Ocelot.DependencyInjection;
 using Ocelot.Middleware;
 using System.Text.Json;
 using System.Diagnostics;
+using ApiGateway.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,11 +11,19 @@ builder.Services.AddOcelot(builder.Configuration);
 
 // Health Checks
 builder.Services.AddHealthChecks();
+builder.Services.AddMemoryCache(); // Cache for session validation
 
 // HttpClient for health checks
 builder.Services.AddHttpClient("HealthCheck", client =>
 {
 	client.Timeout = TimeSpan.FromSeconds(5);
+});
+
+// HttpClient for IdentityService (Session Validation)
+builder.Services.AddHttpClient("IdentityService", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["IdentityService:BaseUrl"] ?? "http://identityservice:5001");
+    client.Timeout = TimeSpan.FromSeconds(5);
 });
 
 // CORS for frontend on localhost:3000
@@ -120,6 +129,8 @@ app.MapWhen(ctx => ctx.Request.Path == "/api/admin/system-health", branch =>
 		await ctx.Response.WriteAsync(JsonSerializer.Serialize(healthResponse));
 	});
 });
+
+app.UseMiddleware<SessionValidationMiddleware>();
 
 await app.UseOcelot();
 

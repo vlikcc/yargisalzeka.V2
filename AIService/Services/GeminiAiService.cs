@@ -19,18 +19,91 @@ public class GeminiAiService : IGeminiAiService
         _apiKey = configuration["Gemini:ApiKey"] ?? string.Empty;
     }
 
-    public async Task<CaseAnalysisResponse> AnalyzeCaseTextAsync(string caseText)
+    public async Task<GeminiFileResponse> UploadFileToGeminiAsync(Stream fileStream, string mimeType, string displayName)
     {
-        var prompt = $$"""
-        Aşağıdaki hukuki olay metnini analiz et.
-        Olay metni:
-        {{caseText}}
-        Aşağıdaki formatta cevap ver:
-        ANALIZ: [Kısa açıklama]   
-        """;
+        if (string.IsNullOrWhiteSpace(_apiKey)) throw new InvalidOperationException("Gemini API key missing.");
+        
+        // 1. Step: Start Resumable Upload
+        var client = _httpClientFactory.CreateClient("Gemini");
+        var initialUrl = $"https://generativelanguage.googleapis.com/upload/v1beta/files?key={_apiKey}";
+        
+        var initialRequest = new HttpRequestMessage(HttpMethod.Post, initialUrl);
+        initialRequest.Headers.Add("X-Goog-Upload-Protocol", "resumable");
+        initialRequest.Headers.Add("X-Goog-Upload-Command", "start");
+        initialRequest.Headers.Add("X-Goog-Upload-Header-Content-Length", fileStream.Length.ToString());
+        initialRequest.Headers.Add("X-Goog-Upload-Header-Content-Type", mimeType);
+        
+        // Metadata for the file
+        var metadata = new { file = new { display_name = displayName } };
+        initialRequest.Content = new StringContent(JsonSerializer.Serialize(metadata), Encoding.UTF8, "application/json");
+
+        var initialResponse = await client.SendAsync(initialRequest);
+        initialResponse.EnsureSuccessStatusCode();
+        
+        var uploadUrl = initialResponse.Headers.GetValues("X-Goog-Upload-URL").FirstOrDefault();
+        if (string.IsNullOrEmpty(uploadUrl)) throw new Exception("Failed to get upload URL from Gemini File API");
+
+        // 2. Step: Upload the actual bytes
+        var uploadRequest = new HttpRequestMessage(HttpMethod.Post, uploadUrl);
+        uploadRequest.Headers.Add("X-Goog-Upload-Protocol", "resumable");
+        uploadRequest.Headers.Add("X-Goog-Upload-Command", "upload, finalize");
+        uploadRequest.Headers.Add("X-Goog-Upload-Offset", "0");
+        
+        // StreamContent might need to be reset if stream position is not 0
+        if (fileStream.Position != 0 && fileStream.CanSeek) fileStream.Position = 0;
+        uploadRequest.Content = new StreamContent(fileStream);
+
+        var uploadResponse = await client.SendAsync(uploadRequest);
+        uploadResponse.EnsureSuccessStatusCode();
+
+        var responseBody = await uploadResponse.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(responseBody);
+        var root = doc.RootElement.GetProperty("file");
+        
+        return new GeminiFileResponse
+        {
+            FileUri = root.GetProperty("uri").GetString() ?? "",
+            Name = root.GetProperty("name").GetString() ?? "",
+            MimeType = root.GetProperty("mimeType").GetString() ?? ""
+        };
+    }
+
+    // Updated signature to accept optional fileUri and fileMimeType
+    public async Task<CaseAnalysisResponse> AnalyzeCaseTextAsync(string caseText, string? fileUri = null, string? fileMimeType = null)
+    {
+        // Prompt construction differs if file is present
+        object[] parts;
+        if (!string.IsNullOrEmpty(fileUri) && !string.IsNullOrEmpty(fileMimeType))
+        {
+             parts = new object[]
+             {
+                 new { text = $$"""
+                 Aşağıdaki hukuki olay metnini (ve varsa ekteki dosyayı) analiz et.
+                 Olay metni:
+                 {{caseText}}
+                 Aşağıdaki formatta cevap ver:
+                 ANALIZ: [Kısa açıklama]
+                 """ },
+                 new { file_data = new { mime_type = fileMimeType, file_uri = fileUri } }
+             };
+        }
+        else
+        {
+            parts = new object[]
+            {
+                new { text = $$"""
+                Aşağıdaki hukuki olay metnini analiz et.
+                Olay metni:
+                {{caseText}}
+                Aşağıdaki formatta cevap ver:
+                ANALIZ: [Kısa açıklama]   
+                """ }
+            };
+        }
+
         try
         {
-            var text = await SendPromptAsync(prompt, ProModel);
+            var text = await SendPromptPartsAsync(parts, ProModel);
             // Normalize: extract the line starting with ANALIZ: if present
             if (!string.IsNullOrWhiteSpace(text))
             {
@@ -53,21 +126,46 @@ public class GeminiAiService : IGeminiAiService
             return new CaseAnalysisResponse { AnalysisResult = "Olay metni analiz hatası" };
         }
     }
-    public async Task<List<string>> ExtractKeywordsFromCaseAsync(string caseText)
+    public async Task<List<string>> ExtractKeywordsFromCaseAsync(string caseText, string? fileUri = null, string? fileMimeType = null)
     {
-        var prompt = $$"""
-Aşağıdaki hukuki olay metnini analiz et ve Yargıtay kararlarında arama yapmak için en uygun anahtar kelimeleri çıkar.
-Anahtar kelimeler Türk hukuku terminolojisine uygun olmalı.
+        object[] parts;
+        if (!string.IsNullOrEmpty(fileUri) && !string.IsNullOrEmpty(fileMimeType))
+        {
+             parts = new object[]
+             {
+                 new { text = $$"""
+                 Aşağıdaki hukuki olay metnini (ve varsa ekteki dosyayı) analiz et ve Yargıtay kararlarında arama yapmak için en uygun anahtar kelimeleri çıkar.
+                 Anahtar kelimeler Türk hukuku terminolojisine uygun olmalı.
+                 
+                 Olay metni:
+                 {{caseText}}
+                 
+                 Sadece anahtar kelimeleri virgülle ayırarak listele. Açıklama yazma.
+                 Örnek format: "tazminat, sözleşme ihlali, maddi zarar, manevi tazminat"
+                 """ },
+                 new { file_data = new { mime_type = fileMimeType, file_uri = fileUri } }
+             };
+        }
+        else
+        {
+            parts = new object[]
+            {
+                new { text = $$"""
+                Aşağıdaki hukuki olay metnini analiz et ve Yargıtay kararlarında arama yapmak için en uygun anahtar kelimeleri çıkar.
+                Anahtar kelimeler Türk hukuku terminolojisine uygun olmalı.
+                
+                Olay metni:
+                {{caseText}}
+                
+                Sadece anahtar kelimeleri virgülle ayırarak listele. Açıklama yazma.
+                Örnek format: "tazminat, sözleşme ihlali, maddi zarar, manevi tazminat"
+                """ }
+            };
+        }
 
-Olay metni:
-{{caseText}}
-
-Sadece anahtar kelimeleri virgülle ayırarak listele. Açıklama yazma.
-Örnek format: "tazminat, sözleşme ihlali, maddi zarar, manevi tazminat"
-""";
         try
         {
-            var text = await SendPromptAsync(prompt, FlashModel);
+            var text = await SendPromptPartsAsync(parts, FlashModel);
             if (string.IsNullOrWhiteSpace(text)) return new List<string>();
             // Replace newlines and semicolons with commas to simplify splitting
             var normalized = text.Replace('\n', ',').Replace(';', ',');
@@ -168,12 +266,17 @@ Bölümler:
 
     private async Task<string> SendPromptAsync(string prompt, string model)
     {
+        return await SendPromptPartsAsync(new object[] { new { text = prompt } }, model);
+    }
+
+    private async Task<string> SendPromptPartsAsync(object[] parts, string model)
+    {
         if (string.IsNullOrWhiteSpace(_apiKey)) throw new InvalidOperationException("Gemini API key missing.");
         var client = _httpClientFactory.CreateClient("Gemini");
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_apiKey}";
-        // Minimal manual retry (no Polly dependency) with exponential backoff + jitter
+        
         var attempt = 0;
-        var maxAttempts = 3; // initial + 2 retries
+        var maxAttempts = 3; 
         var rnd = new Random();
         while (true)
         {
@@ -186,7 +289,7 @@ Bölümler:
                     {
                         new
                         {
-                            parts = new[]{ new { text = prompt } }
+                            parts = parts
                         }
                     }
                 }), Encoding.UTF8, "application/json")
@@ -215,18 +318,16 @@ Bölümler:
                     catch (Exception parseEx)
                     {
                         _logger.LogError(parseEx, "Gemini API response parse error (attempt {Attempt}): {Body}", attempt, body);
-                        // Parsing problem unlikely to be solved by retry unless malformed transient JSON; we retry once more if attempts remain.
                         if (attempt >= maxAttempts) return string.Empty;
                     }
                 }
                 else
                 {
                     var status = (int)response.StatusCode;
-                    var transient = status is 429 or 500 or 502 or 503 or 504; // treat these as retryable
+                    var transient = status is 429 or 500 or 502 or 503 or 504; 
                     if (!transient)
                     {
                         _logger.LogWarning("Gemini non-retryable status {Status} (attempt {Attempt}): {Body}", response.StatusCode, attempt, body);
-                        // Don't leak status code details upward to UI; generic message.
                         throw new HttpRequestException("Gemini API request failed");
                     }
                     _logger.LogWarning("Gemini transient failure {Status} (attempt {Attempt}/{MaxAttempts}): {Body}", response.StatusCode, attempt, maxAttempts, body);
@@ -247,11 +348,9 @@ Bölümler:
 
             if (attempt >= maxAttempts)
             {
-                // Give up gracefully; outer method will choose fallback behavior.
                 throw new HttpRequestException("Gemini API request failed after retries");
             }
 
-            // Exponential backoff with jitter (base 250ms)
             var delayMs = (int)(Math.Pow(2, attempt - 1) * 250) + rnd.Next(0, 150);
             await Task.Delay(delayMs);
         }

@@ -97,7 +97,14 @@ namespace IdentityService.Controllers
                 _logger.LogWarning(ex, "Trial abonelik atama denemesi başarısız (opsiyonel)");
             }
 
-            var token = GenerateJwtToken(user);
+            // Capturing IP and User Agent for session
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var userAgent = Request.Headers["User-Agent"].ToString();
+
+            // Create Session
+            var sessionId = await CreateUserSession(user.Id, ipAddress, userAgent);
+
+            var token = GenerateJwtToken(user, sessionId);
             return Ok(new AuthResponse { Token = token.Token, ExpiresAtUtc = token.ExpiresAtUtc });
         }
 
@@ -147,8 +154,11 @@ namespace IdentityService.Controllers
                 user.LastLoginAt = DateTime.UtcNow;
                 await _userManager.UpdateAsync(user);
 
+                // Create Session (Invalidates old ones)
+                var sessionId = await CreateUserSession(user.Id, ipAddress, userAgent);
+
                 _logger.LogInformation("Kullanıcı giriş yaptı: {Email}", request.Email);
-                var token = GenerateJwtToken(user);
+                var token = GenerateJwtToken(user, sessionId);
                 return Ok(new AuthResponse { Token = token.Token, ExpiresAtUtc = token.ExpiresAtUtc });
             }
             catch (Exception ex)
@@ -157,6 +167,54 @@ namespace IdentityService.Controllers
                 var innerMessage = ex.InnerException?.Message ?? "No inner exception";
                 return StatusCode(500, new { Message = "Sunucu Hatası: " + ex.Message, InnerException = innerMessage, Detail = ex.StackTrace });
             }
+        }
+
+        [HttpPost("validate-session")]
+        [AllowAnonymous] 
+        public async Task<IActionResult> ValidateSession([FromBody] SessionValidationRequest request)
+        {
+            if (string.IsNullOrEmpty(request.SessionId))
+                return BadRequest(new { Message = "SessionId is required" });
+
+            var session = await _dbContext.UserSessions
+                .FirstOrDefaultAsync(s => s.Id == request.SessionId && s.IsActive);
+
+            if (session == null)
+            {
+                return Unauthorized(new { Message = "Session invalid or expired" });
+            }
+
+            // Optional: Update LastActivityAt
+            session.LastActivityAt = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync();
+
+            return Ok(new { IsValid = true });
+        }
+
+        private async Task<string> CreateUserSession(string userId, string? ipAddress, string? userAgent)
+        {
+            // Invalidate existing active sessions
+            var activeSessions = await _dbContext.UserSessions
+                .Where(s => s.UserId == userId && s.IsActive)
+                .ToListAsync();
+
+            foreach (var session in activeSessions)
+            {
+                session.IsActive = false;
+            }
+
+            // Create new session
+            var newSession = new UserSession
+            {
+                UserId = userId,
+                IpAddress = ipAddress,
+                UserAgent = userAgent
+            };
+            
+            _dbContext.UserSessions.Add(newSession);
+            await _dbContext.SaveChangesAsync();
+
+            return newSession.Id;
         }
 
         private async Task LogLoginAttempt(string? userId, string email, bool isSuccess, string? failureReason, string? ipAddress, string? userAgent)
@@ -566,7 +624,7 @@ namespace IdentityService.Controllers
             return Ok(new { Message = "SuperAdmin kullanıcısı başarıyla oluşturuldu" });
         }
 
-    private (string Token, DateTime ExpiresAtUtc) GenerateJwtToken(ApplicationUser user)
+    private (string Token, DateTime ExpiresAtUtc) GenerateJwtToken(ApplicationUser user, string sessionId)
         {
             var key = _configuration["Jwt:Key"] ?? "insecure-dev-key-change-me-at-least-32-chars";
             if (key == "insecure-dev-key-change-me-at-least-32-chars")
@@ -581,7 +639,8 @@ namespace IdentityService.Controllers
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim(ClaimTypes.Role, user.Role)
+                new Claim(ClaimTypes.Role, user.Role),
+                new Claim("sid", sessionId) // Session ID claim
             };
 
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
@@ -692,5 +751,10 @@ namespace IdentityService.Controllers
         public bool ShowOnDashboard { get; set; } = true;
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
+    }
+
+    public class SessionValidationRequest
+    {
+        public string SessionId { get; set; } = string.Empty;
     }
 }

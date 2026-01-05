@@ -40,7 +40,7 @@ public class GeminiController : ControllerBase
         var access = await sub.GetFromJsonAsync<ValidateAccessDto>($"api/subscription/usage");
         if (access == null) return StatusCode(502, "Subscription service unreachable");
         if (access.KeywordExtractionRemaining == 0) return StatusCode(403, new { error = "Anahtar kelime çıkarma limitiniz tükendi" });
-        var keywords = await _service.ExtractKeywordsFromCaseAsync(request.CaseText);
+        var keywords = await _service.ExtractKeywordsFromCaseAsync(request.CaseText, request.FileUri, request.FileMimeType);
         if (keywords.Count > 0)
         {
             await sub.PostAsJsonAsync("api/subscription/consume", new { FeatureType = FeatureTypes.KeywordExtraction });
@@ -228,7 +228,7 @@ public class GeminiController : ControllerBase
                 return StatusCode(502, new { error = "Subscription service unreachable (usage null)" });
             }
             if (access.CaseAnalysisRemaining == 0) return StatusCode(403, new { error = "Olay analizi limitiniz tükendi" });
-            var result = await _service.AnalyzeCaseTextAsync(request.CaseText);
+            var result = await _service.AnalyzeCaseTextAsync(request.CaseText, request.FileUri, request.FileMimeType);
             if (!string.IsNullOrWhiteSpace(result.AnalysisResult) && !string.Equals(result.AnalysisResult, "Olay metni analiz hatası", StringComparison.OrdinalIgnoreCase))
             {
                 try
@@ -277,12 +277,12 @@ public class GeminiController : ControllerBase
         // Zaman bütçesi yerine doğrudan çağrılar (gerekirse ileride sabit timeout eklenebilir)
         async Task<CaseAnalysisResponse?> RunAnalysis()
         {
-            try { return await _service.AnalyzeCaseTextAsync(request.CaseText); }
+            try { return await _service.AnalyzeCaseTextAsync(request.CaseText, request.FileUri, request.FileMimeType); }
             catch { return new CaseAnalysisResponse { AnalysisResult = "Analiz hatası" }; }
         }
         async Task<List<string>> RunKeywords()
         {
-            try { return await _service.ExtractKeywordsFromCaseAsync(request.CaseText); }
+            try { return await _service.ExtractKeywordsFromCaseAsync(request.CaseText, request.FileUri, request.FileMimeType); }
             catch { return new List<string>(); }
         }
 
@@ -439,8 +439,8 @@ public class GeminiController : ControllerBase
             // ADIM 1 & 2: Paralel olarak olay analizi ve anahtar kelime çıkarma
             _logger.LogInformation("FullFlow başlatıldı - UserId: {UserId}", userId);
             
-            var analysisTask = _service.AnalyzeCaseTextAsync(request.CaseText);
-            var keywordsTask = _service.ExtractKeywordsFromCaseAsync(request.CaseText);
+            var analysisTask = _service.AnalyzeCaseTextAsync(request.CaseText, request.FileUri, request.FileMimeType);
+            var keywordsTask = _service.ExtractKeywordsFromCaseAsync(request.CaseText, request.FileUri, request.FileMimeType);
             
             await Task.WhenAll(analysisTask, keywordsTask);
             
@@ -681,6 +681,37 @@ public class GeminiController : ControllerBase
                 Success = false,
                 ErrorMessage = "Dosya işlenirken bir hata oluştu"
             });
+        }
+    }
+
+    /// <summary>
+    /// Google File API'ye dosya yükleme endpoint'i
+    /// </summary>
+    [HttpPost("upload-gemini")]
+    [ProducesResponseType(typeof(GeminiFileResponse), 200)]
+    [RequestSizeLimit(100 * 1024 * 1024)] // 100 MB limit
+    public async Task<IActionResult> UploadToGemini(IFormFile file)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        if (file == null || file.Length == 0) return BadRequest("Dosya yüklenmedi");
+        if (file.Length > 100 * 1024 * 1024) return BadRequest("Dosya boyutu 100MB'ı aşamaz");
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var result = await _service.UploadFileToGeminiAsync(stream, file.ContentType, file.FileName);
+            
+            _logger.LogInformation("Gemini'ye dosya yüklendi: {FileName} ({Uri}) - UserId: {UserId}", 
+                file.FileName, result.FileUri, userId);
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Gemini upload hatası: {FileName}", file.FileName);
+            return StatusCode(500, new { error = "Dosya Gemini'ye yüklenirken hata oluştu" });
         }
     }
 

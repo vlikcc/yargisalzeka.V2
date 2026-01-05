@@ -125,19 +125,19 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-success-100 rounded-lg flex items-center justify-center">
-            <FileText className="w-5 h-5 text-success-700" />
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 rounded-xl flex items-center justify-center border border-emerald-500/30">
+            <FileText className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
-            <h3 className="font-semibold text-slate-900">Dilekçe Oluştur</h3>
-            <p className="text-xs text-slate-500">Analiz sonuçlarına göre dilekçe taslağı</p>
+            <h3 className="font-semibold text-white">Dilekçe Oluştur</h3>
+            <p className="text-xs text-slate-400">Analiz sonuçlarına göre dilekçe taslağı</p>
           </div>
         </div>
 
         {hasAnalysis ? (
           <>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">
                 Dilekçe Konusu (Opsiyonel)
               </label>
               <input
@@ -168,23 +168,23 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
             </button>
 
             {remaining?.petition === 0 && (
-              <div className="flex items-start gap-2 p-3 bg-warning-50 border border-warning-200 rounded-lg">
-                <AlertCircle className="w-4 h-4 text-warning-600 mt-0.5" />
-                <p className="text-sm text-warning-700">Dilekçe hakkınız kalmadı</p>
+              <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5" />
+                <p className="text-sm text-red-300">Dilekçe hakkınız kalmadı</p>
               </div>
             )}
 
             {error && (
-              <div className="flex items-start gap-2 p-3 bg-error-50 border border-error-200 rounded-lg">
-                <AlertCircle className="w-4 h-4 text-error-600 mt-0.5" />
-                <p className="text-sm text-error-700">{error}</p>
+              <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5" />
+                <p className="text-sm text-red-400">{error}</p>
               </div>
             )}
           </>
         ) : (
-          <div className="flex items-start gap-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-            <AlertCircle className="w-4 h-4 text-slate-500 mt-0.5" />
-            <p className="text-sm text-slate-600">
+          <div className="flex items-start gap-2 p-3 bg-slate-800/50 border border-white/5 rounded-lg text-slate-400">
+            <AlertCircle className="w-4 h-4 mt-0.5" />
+            <p className="text-sm">
               Dilekçe oluşturmak için önce arama yapın
             </p>
           </div>
@@ -195,61 +195,61 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
 
   // Dilekçe oluşturulmuş
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4 animate-fade-in-up">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-success-100 rounded-lg flex items-center justify-center">
-            <Check className="w-5 h-5 text-success-700" />
+          <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
+            <Check className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
-            <h3 className="font-semibold text-slate-900">Dilekçe Hazır</h3>
-            <p className="text-xs text-slate-500">{data.topic}</p>
+            <h3 className="font-semibold text-white">Dilekçe Hazır</h3>
+            <p className="text-xs text-slate-400">{data.topic}</p>
           </div>
         </div>
 
         <div className="flex gap-2">
           <button
             onClick={copyToClipboard}
-            className="btn-ghost btn-sm"
+            className="btn-ghost btn-sm text-slate-300 hover:text-white"
           >
             {copied ? (
               <>
-                <Check className="w-4 h-4 mr-1 text-success-600" />
+                <Check className="w-4 h-4 mr-1.5 text-emerald-400" />
                 Kopyalandı
               </>
             ) : (
               <>
-                <Copy className="w-4 h-4 mr-1" />
+                <Copy className="w-4 h-4 mr-1.5" />
                 Kopyala
               </>
             )}
           </button>
           <div className="relative group">
-            <button className="btn-ghost btn-sm">
-              <Download className="w-4 h-4 mr-1" />
+            <button className="btn-ghost btn-sm text-slate-300 hover:text-white">
+              <Download className="w-4 h-4 mr-1.5" />
               İndir
               <ChevronDown className="w-3 h-3 ml-1" />
             </button>
-            <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-slate-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+            <div className="absolute right-0 mt-1 w-40 glass rounded-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 border border-white/10">
               <button
                 onClick={downloadAsTxt}
-                className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-white/10 flex items-center gap-2"
               >
-                <FileText className="w-4 h-4" />
+                <FileText className="w-4 h-4 text-slate-400" />
                 TXT olarak
               </button>
               <button
                 onClick={downloadAsDoc}
-                className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-white/10 flex items-center gap-2"
               >
-                <FileText className="w-4 h-4" />
+                <FileText className="w-4 h-4 text-blue-400" />
                 Word (.doc)
               </button>
               <button
                 onClick={downloadAsUdfHandler}
-                className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-white/10 flex items-center gap-2"
               >
-                <Scale className="w-4 h-4" />
+                <Scale className="w-4 h-4 text-red-400" />
                 UYAP (.udf)
               </button>
             </div>
@@ -257,18 +257,18 @@ export function PetitionGenerator({ currentSearch, originalCaseText }: Props) {
         </div>
       </div>
 
-      <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
-        <div className="bg-slate-100 px-4 py-2 border-b border-slate-200">
-          <span className="text-xs font-medium text-slate-600">DİLEKÇE TASLAĞI</span>
+      <div className="bg-slate-800/30 rounded-lg border border-white/5 overflow-hidden">
+        <div className="bg-slate-800/50 px-4 py-2 border-b border-white/5 flex items-center justify-between">
+          <span className="text-xs font-medium text-slate-400">DİLEKÇE TASLAĞI</span>
         </div>
-        <div className="p-4 max-h-80 overflow-y-auto custom-scrollbar">
-          <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans leading-relaxed">
+        <div className="p-4 max-h-96 overflow-y-auto custom-scrollbar">
+          <pre className="whitespace-pre-wrap text-sm text-slate-300 font-serif leading-relaxed">
             {data.content}
           </pre>
         </div>
       </div>
 
-      <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800">
+      <div className="flex items-start gap-2 p-3 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-xs text-cyan-400">
         <AlertCircle className="w-4 h-4 mt-0.5" />
         <p>Bu dilekçe otomatik olarak kaydedilmiştir. Daha sonra "Dilekçelerim" sayfasından erişebilirsiniz.</p>
       </div>

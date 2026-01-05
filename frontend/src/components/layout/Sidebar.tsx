@@ -36,12 +36,18 @@ export function Sidebar() {
   const isAdmin = state.user?.role === 'Admin' || state.user?.role === 'SuperAdmin';
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 hidden lg:flex flex-col">
+    <aside className="w-64 glass border-r border-white/10 hidden lg:flex flex-col">
       {/* Logo */}
-      <div className="h-16 flex items-center px-6 border-b border-slate-100">
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Yargısal Zeka" className="w-8 h-8 object-contain" />
-          <span className="font-semibold text-slate-900">Yargısal Zeka</span>
+      <div className="h-16 flex items-center px-6 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <img
+            src="/images/logo-symbol.png"
+            alt="Yargısal Zeka"
+            className="w-8 h-8 object-contain drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]"
+          />
+          <span className="font-semibold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+            Yargısal Zeka
+          </span>
         </div>
       </div>
 
@@ -53,9 +59,9 @@ export function Sidebar() {
             to={item.to}
             end={item.to === '/app'}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
-                ? 'bg-primary-50 text-primary-800'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
+                ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                : 'text-slate-400 hover:bg-white/5 hover:text-white'
               }`
             }
           >
@@ -66,8 +72,8 @@ export function Sidebar() {
 
         {/* Admin Section */}
         {isAdmin && (
-          <div className="mt-6 pt-6 border-t border-slate-200">
-            <div className="px-3 mb-2 text-xs font-medium text-slate-400 uppercase tracking-wider">
+          <div className="mt-6 pt-6 border-t border-white/10">
+            <div className="px-3 mb-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
               Admin
             </div>
             {adminItems.map(item => (
@@ -75,9 +81,9 @@ export function Sidebar() {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
-                    ? 'bg-primary-50 text-primary-800'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
+                    ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
+                    : 'text-slate-400 hover:bg-white/5 hover:text-white'
                   }`
                 }
               >
@@ -90,9 +96,9 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-slate-100">
-        <div className="px-3 py-2 text-xs text-slate-400">
-          © 2024 Yargısal Zeka
+      <div className="p-4 border-t border-white/10">
+        <div className="px-3 py-2 text-xs text-slate-500">
+          © 2026 Yargısal Zeka
         </div>
       </div>
     </aside>

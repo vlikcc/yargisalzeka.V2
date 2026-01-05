@@ -88,11 +88,11 @@ export default function DashboardPage() {
         {/* Subscription Info */}
         <div className="card p-6">
           <h2 className="heading-4 mb-4">Abonelik Durumu</h2>
-          
+
           <div className="space-y-4">
-            <div className="p-4 bg-primary-50 rounded-lg">
-              <div className="text-sm text-primary-600 mb-1">Aktif Plan</div>
-              <div className="text-lg font-semibold text-primary-800">
+            <div className="p-4 bg-gradient-to-r from-cyan-500/10 to-violet-500/10 rounded-xl border border-cyan-500/20">
+              <div className="text-sm text-cyan-400 mb-1">Aktif Plan</div>
+              <div className="text-lg font-semibold text-white">
                 {loading ? '...' : plan?.name || 'Plan yok'}
               </div>
             </div>
@@ -135,10 +135,10 @@ function StatCard({ title, value, icon }: { title: string; value: number | strin
     <div className="card p-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm text-slate-500">{title}</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">{value}</div>
+          <div className="text-sm text-slate-400">{title}</div>
+          <div className="text-2xl font-bold text-white mt-1">{value}</div>
         </div>
-        <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center text-primary-700">
+        <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center text-cyan-400">
           {icon}
         </div>
       </div>
@@ -147,43 +147,40 @@ function StatCard({ title, value, icon }: { title: string; value: number | strin
 }
 
 // Quick Action Card Component
-function QuickActionCard({ 
-  title, 
-  description, 
-  icon, 
+function QuickActionCard({
+  title,
+  description,
+  icon,
   onClick,
-  primary = false 
-}: { 
-  title: string; 
-  description: string; 
-  icon: React.ReactNode; 
+  primary = false
+}: {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
   onClick: () => void;
   primary?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`p-4 rounded-lg text-left transition-all group ${
-        primary 
-          ? 'bg-primary-50 hover:bg-primary-100' 
-          : 'bg-slate-50 hover:bg-slate-100'
-      }`}
+      className={`p-4 rounded-xl text-left transition-all group border ${primary
+          ? 'bg-cyan-500/10 border-cyan-500/20 hover:bg-cyan-500/20 hover:border-cyan-500/30'
+          : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+        }`}
     >
       <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-          primary ? 'bg-primary-100 text-primary-700' : 'bg-white text-slate-600'
-        }`}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${primary ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/10 text-slate-300'
+          }`}>
           {icon}
         </div>
         <div className="flex-1">
-          <div className={`font-medium ${primary ? 'text-primary-800' : 'text-slate-800'}`}>
+          <div className={`font-medium ${primary ? 'text-cyan-300' : 'text-white'}`}>
             {title}
           </div>
-          <div className="text-sm text-slate-500 mt-0.5">{description}</div>
+          <div className="text-sm text-slate-400 mt-0.5">{description}</div>
         </div>
-        <ArrowRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity ${
-          primary ? 'text-primary-600' : 'text-slate-400'
-        }`} />
+        <ArrowRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity ${primary ? 'text-cyan-400' : 'text-slate-400'
+          }`} />
       </div>
     </button>
   );
@@ -193,11 +190,11 @@ function QuickActionCard({
 function RemainingItem({ label, value, loading }: { label: string; value?: number; loading: boolean }) {
   const displayValue = loading ? '...' : value === -1 ? '∞' : value ?? 0;
   const isUnlimited = value === -1;
-  
+
   return (
-    <div className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-      <span className="text-sm text-slate-600">{label}</span>
-      <span className={`text-sm font-medium ${isUnlimited ? 'text-success-600' : 'text-slate-900'}`}>
+    <div className="flex items-center justify-between py-2 border-b border-white/10 last:border-0">
+      <span className="text-sm text-slate-400">{label}</span>
+      <span className={`text-sm font-medium ${isUnlimited ? 'text-emerald-400' : 'text-white'}`}>
         {displayValue}
       </span>
     </div>
