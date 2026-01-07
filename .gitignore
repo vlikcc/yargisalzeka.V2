@@ -101,3 +101,6 @@ obj/
 
 azure-creds.json
 yargisalzeka
+
+# Scraper logs
+*.log
